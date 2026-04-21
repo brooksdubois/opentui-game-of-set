@@ -113,11 +113,7 @@ class JsonAdapter(
                     StateResponse(
                         command = command.command,
                         state = result.state.toDto(),
-                        message = if (result.cardsDealt == 0) {
-                            "no undealt cards remain"
-                        } else {
-                            "dealt ${result.cardsDealt} cards"
-                        },
+                        message = result.message(),
                     )
                 }
 
@@ -161,6 +157,14 @@ class JsonAdapter(
             code = "missing_field",
             message = "Missing required field: $fieldName",
         )
+
+    private fun org.brooks.engine.DealMoreResult.message(): String =
+        when {
+            cardsDealt > 0 -> "dealt $cardsDealt cards"
+            state.gameComplete -> "no set found on 15-card board"
+            state.board.size >= 15 -> "15-card board limit reached"
+            else -> "no undealt cards remain"
+        }
 
     private fun GameState.toDto(): GameStateDto {
         val selectedIndexes = selectedCards.map { it.boardIndex }

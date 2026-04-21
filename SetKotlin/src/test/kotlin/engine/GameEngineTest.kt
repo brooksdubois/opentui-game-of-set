@@ -26,20 +26,58 @@ class GameEngineTest {
     }
 
     @Test
-    fun dealMoreStopsWhenDeckIsExhausted() {
+    fun dealMoreStopsAtFifteenCards() {
         val engine = GameEngine(deckFactory = { DeckFactory.standardSetDeck() })
 
-        while (engine.currentState().remainingCards > 0) {
-            engine.dealMore()
-        }
+        engine.dealMore()
 
         val beforeNoOp = engine.currentState()
         val result = engine.dealMore()
 
         assertEquals(0, result.cardsDealt)
-        assertEquals(0, result.state.remainingCards)
+        assertEquals(15, result.state.board.size)
         assertEquals(beforeNoOp.board.size, result.state.board.size)
         assertBoardHasNoDuplicates(result.state.board)
+    }
+
+    @Test
+    fun dealMoreCompletesGameWhenFifteenCardBoardStillHasNoSet() {
+        val noSetBoard = noSetCards(15)
+        val deck = noSetBoard + DeckFactory.standardSetDeck().filterNot { it in noSetBoard }
+        val engine = GameEngine(deckFactory = { deck })
+
+        assertFalse(engine.currentState().hasAnySetOnBoard)
+
+        val expanded = engine.dealMore()
+        assertEquals(3, expanded.cardsDealt)
+        assertEquals(15, expanded.state.board.size)
+        assertFalse(expanded.state.hasAnySetOnBoard)
+        assertFalse(expanded.state.gameComplete)
+
+        val completed = engine.dealMore()
+        assertEquals(0, completed.cardsDealt)
+        assertEquals(15, completed.state.board.size)
+        assertFalse(completed.state.hasAnySetOnBoard)
+        assertTrue(completed.state.gameComplete)
+        assertEquals(GameStatus.Complete, completed.state.status)
+    }
+
+    @Test
+    fun reDealCompletesGameWhenFifteenCardBoardStillHasNoSet() {
+        val noSetBoard = noSetCards(15)
+        val deck = noSetBoard + DeckFactory.standardSetDeck().filterNot { it in noSetBoard }
+        val engine = GameEngine(deckFactory = { deck })
+
+        engine.dealMore()
+        val result = engine.reDeal()
+
+        assertFalse(result.redealt)
+        assertEquals(0, result.cardsAdded)
+        assertEquals("no set found on 15-card board", result.message)
+        assertEquals(15, result.state.board.size)
+        assertFalse(result.state.hasAnySetOnBoard)
+        assertTrue(result.state.gameComplete)
+        assertEquals(GameStatus.Complete, result.state.status)
     }
 
     @Test
