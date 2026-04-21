@@ -1,6 +1,12 @@
-import { mockGameState } from "../mockState";
+import type { EngineClient } from "../engine/engineClient";
+import { createKotlinEngineClient } from "../engine/engineClient";
 import { GameScreen } from "./GameScreen";
 
-export function App() {
-  return <GameScreen state={mockGameState} />;
+interface AppProps {
+  client?: EngineClient;
+}
+
+export function App(props: AppProps) {
+  const client = props.client ?? createKotlinEngineClient();
+  return <GameScreen client={client} />;
 }

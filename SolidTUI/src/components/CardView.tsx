@@ -3,13 +3,23 @@ import type { SetCard } from "../types";
 
 interface CardViewProps {
   card: SetCard;
+  focused: boolean;
+  invalid: boolean;
 }
 
 export function CardView(props: CardViewProps) {
+  const borderColor = () => {
+    if (props.invalid) return "#ff5f5f";
+    if (props.card.selected) return "#f6d365";
+    return "#dfe7eb";
+  };
+  const borderStyle = () => (props.focused ? "double" : "single");
+
   return (
     <box
       border
-      borderColor="#dfe7eb"
+      borderStyle={borderStyle()}
+      borderColor={borderColor()}
       width={35}
       height={11}
       padding={0}

@@ -51,11 +51,11 @@ function getRightCard(): string {
 function getSquiggle(fill: string): string {
   return [
     "  .''.   ",
-    `  \\${fill}${fill}${fill}\\  `,
-    `  /${fill}${fill}${fill}/  `,
-    ` /${fill}${fill}${fill}\\   `,
-    `  \\${fill}${fill}${fill}\\  `,
-    `  /${fill}${fill}${fill}/  `,
+    `  ╲${fill}${fill}${fill}╲  `,
+    `  ╱${fill}${fill}${fill}╱  `,
+    ` ╱${fill}${fill}${fill}╲   `,
+    `  ╲${fill}${fill}${fill}╲  `,
+    `  ╱${fill}${fill}${fill}╱  `,
     "  '..'   ",
   ].join("\n");
 }
