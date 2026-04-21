@@ -1,8 +1,13 @@
 {
   "name": "solidtui",
-  "module": "index.ts",
+  "module": "index.tsx",
   "type": "module",
   "private": true,
+  "scripts": {
+    "start": "bun run index.tsx",
+    "check": "tsc --noEmit",
+    "smoke": "bun run src/smoke.tsx"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -10,6 +15,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@opentui/core": "^0.1.102"
+    "@opentui/core": "^0.1.102",
+    "@opentui/solid": "^0.1.102",
+    "solid-js": "^1.9.12"
   }
 }
