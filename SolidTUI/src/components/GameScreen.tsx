@@ -1,10 +1,11 @@
 import {createEffect, createSignal, onCleanup, onMount, Show} from "solid-js";
 import { useKeyboard, useRenderer } from "@opentui/solid";
-import type { KeyEvent } from "@opentui/core";
+import type { KeyEvent, MouseEvent } from "@opentui/core";
 import type { EngineClient } from "../engine/engineClient";
 import { engineStateToViewState } from "../engine/mappers";
 import type { EngineCommand, EngineCommandName, EngineResponse } from "../engine/protocol";
 import type { GameViewState } from "../types";
+import type { SetCard } from "../types";
 import { BoardGrid } from "./BoardGrid";
 import { Header } from "./Header.tsx";
 import { StatusPanel } from "./StatusPanel.tsx";
@@ -13,20 +14,29 @@ interface GameScreenProps {
   client: EngineClient;
 }
 
+type InputMode = "keyboard" | "mouse";
+type MousePoint = { x: number; y: number };
+
 export function GameScreen(props: GameScreenProps) {
   const renderer = useRenderer();
   const [state, setState] = createSignal<GameViewState | null>(null);
   const [focusedIndex, setFocusedIndex] = createSignal(0);
+  const [hoveredIndex, setHoveredIndex] = createSignal<number | null>(null);
+  const [inputMode, setInputMode] = createSignal<InputMode>("keyboard");
   const [message, setMessage] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const [invalidIndexes, setInvalidIndexes] = createSignal<Set<number>>(new Set());
   let invalidHighlightTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastMousePoint: MousePoint | undefined;
+  let suppressedMousePoint: MousePoint | undefined;
 
   const focusedBoardIndex = () => {
     const board = state()?.board ?? [];
     const focus = focusedIndex();
     return board[focus]?.index ?? -1;
   };
+  const visualFocusedIndex = () => (inputMode() === "keyboard" ? focusedIndex() : -1);
+  const visualHoveredIndex = () => (inputMode() === "mouse" ? hoveredIndex() : null);
   const selectedCount = () => state()?.board.filter((card) => card.selected).length ?? 0;
 
   async function runCommand(command: EngineCommand): Promise<void> {
@@ -80,7 +90,7 @@ export function GameScreen(props: GameScreenProps) {
     invalidHighlightTimer = setTimeout(() => {
       setInvalidIndexes(new Set<number>());
       invalidHighlightTimer = undefined;
-    }, 3000);
+    }, 1000);
   }
 
   function moveFocus(delta: number): void {
@@ -108,6 +118,10 @@ export function GameScreen(props: GameScreenProps) {
 
   function toggleFocusedSelection(): void {
     const index = focusedBoardIndex();
+    toggleSelectionByBoardIndex(index);
+  }
+
+  function toggleSelectionByBoardIndex(index: number): void {
     if (index < 0 || busy()) return;
 
     clearInvalidHighlight();
@@ -126,8 +140,45 @@ export function GameScreen(props: GameScreenProps) {
     })();
   }
 
+  function handleCardClick(position: number, card: SetCard, event: MouseEvent): void {
+    lastMousePoint = pointFromMouseEvent(event);
+    suppressedMousePoint = undefined;
+    setInputMode("mouse");
+    setHoveredIndex(position);
+    setFocusedIndex(position);
+    toggleSelectionByBoardIndex(card.index);
+  }
+
+  function handleCardHover(position: number | null, event?: MouseEvent): void {
+    if (position !== null) {
+      const point = event ? pointFromMouseEvent(event) : undefined;
+      if (point && suppressedMousePoint && sameMousePoint(point, suppressedMousePoint)) {
+        return;
+      }
+
+      lastMousePoint = point;
+      suppressedMousePoint = undefined;
+      setInputMode("mouse");
+    }
+
+    setHoveredIndex(position);
+  }
+
+  function enterKeyboardMode(): void {
+    if (inputMode() === "mouse") {
+      const hovered = hoveredIndex();
+      if (hovered !== null) {
+        setFocusedIndex(hovered);
+      }
+      suppressedMousePoint = lastMousePoint;
+      setHoveredIndex(null);
+      setInputMode("keyboard");
+    }
+  }
+
   function handleKey(key: KeyEvent): void {
     const name = key.name.toLowerCase();
+    enterKeyboardMode();
 
     if (name === "q") {
       void props.client.shutdown().finally(() => renderer.destroy());
@@ -199,11 +250,20 @@ export function GameScreen(props: GameScreenProps) {
     const boardLength = state()?.board.length ?? 0;
     if (boardLength === 0) {
       setFocusedIndex(0);
+      setHoveredIndex(null);
+      setInputMode("keyboard");
+      lastMousePoint = undefined;
+      suppressedMousePoint = undefined;
       return;
     }
 
     if (focusedIndex() >= boardLength) {
       setFocusedIndex(boardLength - 1);
+    }
+
+    const hovered = hoveredIndex();
+    if (hovered !== null && hovered >= boardLength) {
+      setHoveredIndex(null);
     }
   });
 
@@ -237,7 +297,14 @@ export function GameScreen(props: GameScreenProps) {
               backgroundColor="#0b0f10"
           >
             <Show when={state() !== null}>
-              <BoardGrid cards={state()?.board ?? []} focusedIndex={focusedIndex()} invalidIndexes={invalidIndexes()} />
+              <BoardGrid
+                  cards={state()?.board ?? []}
+                  focusedIndex={visualFocusedIndex()}
+                  hoveredIndex={visualHoveredIndex()}
+                  invalidIndexes={invalidIndexes()}
+                  onCardClick={handleCardClick}
+                  onCardHover={handleCardHover}
+              />
             </Show>
           </box>
         </box>
@@ -254,4 +321,12 @@ function messageForCommand(command: EngineCommandName, response: EngineResponse)
   }
   if (command === "new_game") return "New game";
   return response.message ?? "";
+}
+
+function pointFromMouseEvent(event: MouseEvent): MousePoint {
+  return { x: event.x, y: event.y };
+}
+
+function sameMousePoint(left: MousePoint, right: MousePoint): boolean {
+  return left.x === right.x && left.y === right.y;
 }

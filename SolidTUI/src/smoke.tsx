@@ -132,13 +132,50 @@ function pressKey(name: string, sequence = name, raw = sequence): void {
   }));
 }
 
+function findFirstCardCenter(frameText: string): { x: number; y: number } {
+  const lines = frameText.split("\n");
+  const topBorder = "╔═════════════════════════════════╗";
+  const y = lines.findIndex((line) => line.includes(topBorder));
+  if (y < 0) throw new Error("Could not locate a card border in the smoke frame.");
+  const line = lines[y] ?? "";
+
+  const x = line.indexOf(topBorder);
+  if (x < 0) throw new Error("Could not locate a card column in the smoke frame.");
+
+  return { x: x + 10, y: y + 5 };
+}
+
+(setup.renderer as unknown as { setupInput?: () => void }).setupInput?.();
+resetFakeState();
+const firstCardCenter = findFirstCardCenter(frame);
+const secondCardCenter = { x: firstCardCenter.x + 38, y: firstCardCenter.y };
+await setup.mockMouse.moveTo(secondCardCenter.x, secondCardCenter.y);
+await Bun.sleep(20);
+await setup.renderOnce();
+await setup.mockMouse.click(secondCardCenter.x, secondCardCenter.y);
+await Bun.sleep(30);
+await setup.renderOnce();
+if (commands.find((command) => command.command === "toggle_select")?.index !== 1) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Mouse click did not toggle the clicked card.");
+}
+if (!setup.captureCharFrame().includes("Focus: 2")) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Mouse click did not move focus to the clicked card.");
+}
+
+pressKey("n");
+await Bun.sleep(20);
+await setup.renderOnce();
+resetFakeState();
 pressKey("left", "\u001b[D");
 pressKey("space", " ", " ");
 await Bun.sleep(20);
 await setup.renderOnce();
-if (commands.find((command) => command.command === "toggle_select")?.index !== 3) {
+const leftWrapIndex = commands.find((command) => command.command === "toggle_select")?.index;
+if (leftWrapIndex !== 3) {
   setup.renderer.destroy();
-  throw new Error("Static TUI smoke test failed. Left wrap did not focus the rightmost card.");
+  throw new Error(`Static TUI smoke test failed. Left wrap did not focus the rightmost card. Got ${leftWrapIndex}.`);
 }
 
 pressKey("right", "\u001b[C");

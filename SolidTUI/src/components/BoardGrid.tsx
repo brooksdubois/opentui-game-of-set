@@ -1,11 +1,15 @@
 import { For } from "solid-js";
+import type { MouseEvent } from "@opentui/core";
 import type { SetCard } from "../types";
 import { CardView } from "./CardView";
 
 interface BoardGridProps {
   cards: SetCard[];
   focusedIndex: number;
+  hoveredIndex: number | null;
   invalidIndexes: Set<number>;
+  onCardClick: (position: number, card: SetCard, event: MouseEvent) => void;
+  onCardHover: (position: number | null, event?: MouseEvent) => void;
 }
 
 export function BoardGrid(props: BoardGridProps) {
@@ -32,7 +36,11 @@ export function BoardGrid(props: BoardGridProps) {
                 <CardView
                   card={card}
                   focused={props.focusedIndex === rowIndex() * 4 + columnIndex()}
+                  hovered={props.hoveredIndex === rowIndex() * 4 + columnIndex()}
                   invalid={props.invalidIndexes.has(card.index)}
+                  onClick={(event) => props.onCardClick(rowIndex() * 4 + columnIndex(), card, event)}
+                  onHoverStart={(event) => props.onCardHover(rowIndex() * 4 + columnIndex(), event)}
+                  onHoverEnd={() => props.onCardHover(null)}
                 />
               )}
             </For>
