@@ -9,6 +9,7 @@ import type { SetCard } from "../types";
 import { BoardGrid } from "./BoardGrid";
 import { Header } from "./Header.tsx";
 import { StatusPanel } from "./StatusPanel.tsx";
+import { WinScreen } from "./WinScreen";
 
 interface GameScreenProps {
   client: EngineClient;
@@ -38,6 +39,7 @@ export function GameScreen(props: GameScreenProps) {
   const visualFocusedIndex = () => (inputMode() === "keyboard" ? focusedIndex() : -1);
   const visualHoveredIndex = () => (inputMode() === "mouse" ? hoveredIndex() : null);
   const selectedCount = () => state()?.board.filter((card) => card.selected).length ?? 0;
+  const isWon = () => state()?.gameComplete === true;
 
   async function runCommand(command: EngineCommand): Promise<void> {
     if (busy()) return;
@@ -122,7 +124,7 @@ export function GameScreen(props: GameScreenProps) {
   }
 
   function toggleSelectionByBoardIndex(index: number): void {
-    if (index < 0 || busy()) return;
+    if (index < 0 || busy() || isWon()) return;
 
     clearInvalidHighlight();
     setBusy(true);
@@ -182,6 +184,14 @@ export function GameScreen(props: GameScreenProps) {
 
     if (name === "q") {
       void props.client.shutdown().finally(() => renderer.destroy());
+      return;
+    }
+
+    if (isWon()) {
+      if (name === "n") {
+        setFocusedIndex(0);
+        void runCommand({ command: "new_game" });
+      }
       return;
     }
 
@@ -297,14 +307,21 @@ export function GameScreen(props: GameScreenProps) {
               backgroundColor="#0b0f10"
           >
             <Show when={state() !== null}>
-              <BoardGrid
-                  cards={state()?.board ?? []}
-                  focusedIndex={visualFocusedIndex()}
-                  hoveredIndex={visualHoveredIndex()}
-                  invalidIndexes={invalidIndexes()}
-                  onCardClick={handleCardClick}
-                  onCardHover={handleCardHover}
-              />
+              <Show
+                when={isWon()}
+                fallback={
+                  <BoardGrid
+                      cards={state()?.board ?? []}
+                      focusedIndex={visualFocusedIndex()}
+                      hoveredIndex={visualHoveredIndex()}
+                      invalidIndexes={invalidIndexes()}
+                      onCardClick={handleCardClick}
+                      onCardHover={handleCardHover}
+                  />
+                }
+              >
+                <WinScreen />
+              </Show>
             </Show>
           </box>
         </box>
