@@ -8,11 +8,14 @@ interface BoardGridProps {
   focusedIndex: number;
   hoveredIndex: number | null;
   invalidIndexes: Set<number>;
+  compact?: boolean;
   onCardClick: (position: number, card: SetCard, event: MouseEvent) => void;
   onCardHover: (position: number | null, event?: MouseEvent) => void;
 }
 
 export function BoardGrid(props: BoardGridProps) {
+  const rowHeight = 11;
+  const rowGap = () => (props.compact ? 0 : 1);
   const rows = () => {
     const rowCount = Math.ceil(props.cards.length / 4);
     return Array.from({ length: rowCount }, (_, rowIndex) =>
@@ -24,13 +27,13 @@ export function BoardGrid(props: BoardGridProps) {
     <box
       id="board-grid"
       width={149}
-      height={Math.max(11, rows().length * 11 + Math.max(0, rows().length - 1))}
+      height={Math.max(rowHeight, rows().length * rowHeight + Math.max(0, rows().length - 1) * rowGap())}
       flexDirection="column"
-      rowGap={1}
+      rowGap={rowGap()}
     >
       <For each={rows()}>
         {(row, rowIndex) => (
-          <box flexDirection="row" columnGap={3} height={11}>
+          <box flexDirection="row" columnGap={3} height={rowHeight}>
             <For each={row}>
               {(card, columnIndex) => (
                 <CardView

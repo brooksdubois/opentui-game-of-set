@@ -40,6 +40,7 @@ export function GameScreen(props: GameScreenProps) {
   const visualHoveredIndex = () => (inputMode() === "mouse" ? hoveredIndex() : null);
   const selectedCount = () => state()?.board.filter((card) => card.selected).length ?? 0;
   const isWon = () => state()?.gameComplete === true;
+  const isCompactBoard = () => !isWon() && (state()?.board.length ?? 0) > 12;
 
   async function runCommand(command: EngineCommand): Promise<void> {
     if (busy()) return;
@@ -287,14 +288,16 @@ export function GameScreen(props: GameScreenProps) {
           backgroundColor="#0b0f10"
           gap={0}
       >
-        <Header />
+        <Show when={!isCompactBoard()}>
+          <Header />
+        </Show>
         <box
             id="main-content"
             width="100%"
             flexGrow={1}
             alignItems="center"
             justifyContent="center"
-            padding={1}
+            padding={isCompactBoard() ? 0 : 1}
             backgroundColor="#0b0f10"
             overflow="hidden"
         >
@@ -315,6 +318,7 @@ export function GameScreen(props: GameScreenProps) {
                       focusedIndex={visualFocusedIndex()}
                       hoveredIndex={visualHoveredIndex()}
                       invalidIndexes={invalidIndexes()}
+                      compact={isCompactBoard()}
                       onCardClick={handleCardClick}
                       onCardHover={handleCardHover}
                   />

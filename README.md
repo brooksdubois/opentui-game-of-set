@@ -4,4 +4,4 @@ Install deps in the bun project:
 
 To run:
 
-`(cd ./SetKotlin && ./gradlew -q runJsonAdapter >/dev/null 2>&1) & (cd ./SolidTUI && bun run start)`
+`(cd ./SolidTUI && bun run start)`

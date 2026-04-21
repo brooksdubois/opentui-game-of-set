@@ -16,7 +16,7 @@ export class JsonLineEngineClient implements EngineClient {
   private pending: PendingRequest[] = [];
   private closed = false;
 
-  constructor(command = ["./gradlew", "-q", "runJsonAdapter"], cwd = "../SetKotlin") {
+  constructor(command = ["./gradlew", "-q", "run"], cwd = "../SetKotlin") {
     this.subprocess = Bun.spawn(command, {
       cwd,
       stdin: "pipe",

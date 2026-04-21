@@ -2,7 +2,7 @@ import { testRender } from "@opentui/solid";
 import { KeyEvent } from "@opentui/core";
 import { App } from "./components/App";
 import type { EngineClient } from "./engine/engineClient";
-import type { EngineCommand, EngineResponse } from "./engine/protocol";
+import type { EngineCardDto, EngineCommand, EngineResponse } from "./engine/protocol";
 import { mockGameState } from "./mockState";
 
 const selectedIndexes = new Set<number>();
@@ -145,6 +145,27 @@ function findFirstCardCenter(frameText: string): { x: number; y: number } {
   return { x: x + 10, y: y + 5 };
 }
 
+function findFirstCardTopRow(frameText: string): number {
+  const singleTopBorder = "┌─────────────────────────────────┐";
+  const doubleTopBorder = "╔═════════════════════════════════╗";
+  const y = frameText
+    .split("\n")
+    .findIndex((line) => line.includes(singleTopBorder) || line.includes(doubleTopBorder));
+  if (y < 0) throw new Error("Could not locate a card border in the smoke frame.");
+
+  return y;
+}
+
+function countCardTopBorders(frameText: string): number {
+  const singleTopBorder = "┌─────────────────────────────────┐";
+  const doubleTopBorder = "╔═════════════════════════════════╗";
+
+  return (
+    (frameText.match(new RegExp(singleTopBorder, "g")) ?? []).length +
+    (frameText.match(new RegExp(doubleTopBorder, "g")) ?? []).length
+  );
+}
+
 (setup.renderer as unknown as { setupInput?: () => void }).setupInput?.();
 resetFakeState();
 const firstCardCenter = findFirstCardCenter(frame);
@@ -265,5 +286,139 @@ if (toggleCommands.length < 3) {
   throw new Error(`Static TUI smoke test failed. Expected Enter to toggle three cards, got ${toggleCommands.length}.`);
 }
 
+const normalFirstCardTopRow = findFirstCardTopRow(frame);
+const compactSelectedIndexes = new Set<number>();
+let compactBoard = [...mockGameState.board];
+const compactExtraCards = mockGameState.board.slice(0, 3).map((card, index) => ({
+  ...card,
+  id: `compact-extra-${index}`,
+  index: 12 + index,
+}));
+
+function toEngineCard(card: (typeof mockGameState.board)[number]): EngineCardDto {
+  return {
+    index: card.index,
+    shape: card.shape === "oval" ? "O" : card.shape === "diamond" ? "D" : "S",
+    color: card.color === "red" ? "R" : card.color === "green" ? "G" : "B",
+    fill: card.fill === "empty" ? "L" : card.fill === "shaded" ? "S" : "F",
+    count: String(card.count) as "1" | "2" | "3",
+    selected: compactSelectedIndexes.has(card.index),
+  };
+}
+
+const compactClient: EngineClient = {
+  async send(command: EngineCommand): Promise<EngineResponse> {
+    const submissionIndexes = command.command === "submit_selection" ? [...compactSelectedIndexes] : [];
+
+    if (command.command === "new_game") {
+      compactBoard = [...mockGameState.board];
+      compactSelectedIndexes.clear();
+    }
+
+    if (command.command === "deal_more") {
+      compactBoard = [...mockGameState.board, ...compactExtraCards];
+      compactSelectedIndexes.clear();
+    }
+
+    if (command.command === "toggle_select" && command.index !== undefined) {
+      if (compactSelectedIndexes.has(command.index)) {
+        compactSelectedIndexes.delete(command.index);
+      } else {
+        compactSelectedIndexes.add(command.index);
+      }
+    }
+
+    if (command.command === "submit_selection") {
+      compactBoard = [...mockGameState.board];
+      compactSelectedIndexes.clear();
+    }
+
+    return {
+      type: "state",
+      ok: true,
+      command: command.command,
+      submission:
+        command.command === "submit_selection"
+          ? { isSet: true, selectedIndexes: submissionIndexes }
+          : undefined,
+      state: {
+        board: compactBoard.map(toEngineCard),
+        selectedIndexes: [...compactSelectedIndexes],
+        remainingCards: compactBoard.length > 12 ? 66 : mockGameState.remainingCards,
+        foundSets: command.command === "submit_selection" ? 1 : mockGameState.foundSets,
+        status: mockGameState.status,
+        hasAnySetOnBoard: mockGameState.hasAnySetOnBoard,
+        gameComplete: mockGameState.gameComplete,
+        gameOver: false,
+      },
+    };
+  },
+  async shutdown(): Promise<void> {},
+};
+
+const compactSetup = await testRender(() => <App client={compactClient} />, { width: 160, height: 44 });
+await compactSetup.renderOnce();
+await Bun.sleep(30);
+await compactSetup.renderOnce();
+
+function pressCompactKey(name: string, sequence = name, raw = sequence): void {
+  compactSetup.renderer.keyInput.emit("keypress", new KeyEvent({
+    name,
+    sequence,
+    raw,
+    ctrl: false,
+    meta: false,
+    shift: false,
+    option: false,
+    number: false,
+    eventType: "press",
+    source: "raw",
+  }));
+}
+
+(compactSetup.renderer as unknown as { setupInput?: () => void }).setupInput?.();
+pressCompactKey("d");
+await Bun.sleep(30);
+await compactSetup.renderOnce();
+const compactFrame = compactSetup.captureCharFrame();
+
+if (countCardTopBorders(compactFrame) !== 15) {
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Compact board did not render all 15 cards.");
+}
+
+if (findFirstCardTopRow(compactFrame) >= normalFirstCardTopRow) {
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Compact board did not reclaim header space.");
+}
+
+pressCompactKey("return", "\r");
+await Bun.sleep(30);
+await compactSetup.renderOnce();
+pressCompactKey("right", "\u001b[C");
+pressCompactKey("return", "\r");
+await Bun.sleep(30);
+await compactSetup.renderOnce();
+pressCompactKey("right", "\u001b[C");
+pressCompactKey("return", "\r");
+await Bun.sleep(80);
+await compactSetup.renderOnce();
+const restoredFrame = compactSetup.captureCharFrame();
+
+if (compactBoard.length !== 12) {
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Clearing a compact set did not restore a 12-card board.");
+}
+
+if (findFirstCardTopRow(restoredFrame) < normalFirstCardTopRow) {
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Clearing a compact set did not restore the normal header layout.");
+}
+
+compactSetup.renderer.destroy();
 setup.renderer.destroy();
 console.log("Static TUI smoke test passed");
