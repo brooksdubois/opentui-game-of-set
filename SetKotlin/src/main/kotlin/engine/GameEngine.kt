@@ -61,6 +61,17 @@ class GameEngine(
         return currentState()
     }
 
+    fun toggleSelection(boardIndex: Int): GameState {
+        require(boardIndex in board.indices) { "Invalid board index: $boardIndex" }
+
+        if (!selectedIndexes.remove(boardIndex)) {
+            require(selectedIndexes.size < 3) { "Cannot select more than 3 cards" }
+            selectedIndexes.add(boardIndex)
+        }
+
+        return currentState()
+    }
+
     fun clearSelection(): GameState {
         selectedIndexes.clear()
         return currentState()
@@ -90,6 +101,27 @@ class GameEngine(
             selectedCards = submittedCards,
             state = currentState(),
         )
+    }
+
+    fun findHint(): List<SelectedCard>? {
+        for (firstIndex in 0 until board.size - 2) {
+            for (secondIndex in firstIndex + 1 until board.size - 1) {
+                for (thirdIndex in secondIndex + 1 until board.size) {
+                    val cards = listOf(board[firstIndex], board[secondIndex], board[thirdIndex])
+                    if (evaluator.areCardsASet(cards)) {
+                        return listOf(firstIndex, secondIndex, thirdIndex).map { boardIndex ->
+                            SelectedCard(
+                                position = layout.positionOf(boardIndex),
+                                boardIndex = boardIndex,
+                                card = board[boardIndex],
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        return null
     }
 
     private fun selectedCards(): List<SelectedCard> =
