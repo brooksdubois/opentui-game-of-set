@@ -297,7 +297,8 @@ export function GameScreen(props: GameScreenProps) {
             flexGrow={1}
             alignItems="center"
             justifyContent="center"
-            padding={isCompactBoard() ? 0 : 1}
+            paddingX={isCompactBoard() ? 0 : 1}
+            paddingY={0}
             backgroundColor="#0b0f10"
             overflow="hidden"
         >
