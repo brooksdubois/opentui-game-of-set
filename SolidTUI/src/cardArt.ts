@@ -9,12 +9,6 @@ export const colorByCardColor: Record<CardColor, string> = {
   blue: "#5fafff",
 };
 
-const fillCharByFill: Record<Fill, string> = {
-  empty: " ",
-  shaded: "⣉",
-  full: "▓",
-};
-
 function lines(text: string): string[] {
   return text.split("\n");
 }
@@ -48,52 +42,116 @@ function getRightCard(): string {
   return combineLineWise(emptySpace(), emptySpace(), emptySpace(), getEdgeCard());
 }
 
-function getSquiggle(fill: string): string {
-  return [
-    "  .''.   ",
-    `  ╲${fill}${fill}${fill}╲  `,
-    `  ╱${fill}${fill}${fill}╱  `,
-    ` |${fill}${fill}${fill}|   `,
-    `  ╲${fill}${fill}${fill}╲  `,
-    `  ╱${fill}${fill}${fill}╱  `,
-    "  '..'   ",
-  ].join("\n");
-}
+const squiggleEmpty = [
+  "  .''.   ",
+  "  ╲   ╲  ",
+  "  ╱   ╱  ",
+  " |   |   ",
+  "  ╲   ╲  ",
+  "  ╱   ╱  ",
+  "  '..'   ",
+].join("\n");
 
-function getDiamond(fill: string): string {
-  return [
-    "    A    ",
-    `   ╱${fill}╲   `,
-    `  ╱${fill}${fill}${fill}╲  `,
-    ` <${fill}${fill}${fill}${fill}${fill}> `,
-    `  ╲${fill}${fill}${fill}╱  `,
-    `   ╲${fill}╱   `,
-    "    V    ",
-  ].join("\n");
-}
+const squiggleLight = [
+  "  .''.   ",
+  "  ╲⣉⣉⣉╲  ",
+  "  ╱⣉⣉⣉╱  ",
+  " |⣉⣉⣉|   ",
+  "  ╲⣉⣉⣉╲  ",
+  "  ╱⣉⣉⣉╱  ",
+  "  '..'   ",
+].join("\n");
 
-function getOval(fill: string): string {
-  return [
-    " .-'''-. ",
-    ` |${fill}${fill}${fill}${fill}${fill}| `,
-    ` |${fill}${fill}${fill}${fill}${fill}| `,
-    ` |${fill}${fill}${fill}${fill}${fill}| `,
-    ` |${fill}${fill}${fill}${fill}${fill}| `,
-    ` |${fill}${fill}${fill}${fill}${fill}| `,
-    " '-___-' ",
-  ].join("\n");
-}
+const squiggleFull = [
+  "  ▗▟▙▖   ",
+  "  ◥███◣  ",
+  "  ◢███◤  ",
+  " ▕███▏   ",
+  "  ◥███◣  ",
+  "  ◢███◤  ",
+  "  ▝▜▛▘   ",
+].join("\n");
 
-function getShape(shape: Shape, fill: string): string {
-  if (shape === "oval") {
-    return getOval(fill);
-  }
+const diamondEmpty = [
+  "    A    ",
+  "   ╱ ╲   ",
+  "  ╱   ╲  ",
+  " <     > ",
+  "  ╲   ╱  ",
+  "   ╲ ╱   ",
+  "    V    ",
+].join("\n");
 
-  if (shape === "diamond") {
-    return getDiamond(fill);
-  }
+const diamondLight = [
+  "    A    ",
+  "   ╱⣉╲   ",
+  "  ╱⣉⣉⣉╲  ",
+  " <⣉⣉⣉⣉⣉> ",
+  "  ╲⣉⣉⣉╱  ",
+  "   ╲⣉╱   ",
+  "    V    ",
+].join("\n");
 
-  return getSquiggle(fill);
+const diamondFull = [
+  "    ▲    ",
+  "   ◢█◣   ",
+  "  ◢███◣  ",
+  " ◀█████▶ ",
+  "  ◥███◤  ",
+  "   ◥█◤   ",
+  "    ▼    ",
+].join("\n");
+
+const ovalEmpty = [
+  " .-'''-. ",
+  " |     | ",
+  " |     | ",
+  " |     | ",
+  " |     | ",
+  " |     | ",
+  " '-___-' ",
+].join("\n");
+
+const ovalLight = [
+  " .-'''-. ",
+  " |⣉⣉⣉⣉⣉| ",
+  " |⣉⣉⣉⣉⣉| ",
+  " |⣉⣉⣉⣉⣉| ",
+  " |⣉⣉⣉⣉⣉| ",
+  " |⣉⣉⣉⣉⣉| ",
+  " '-___-' ",
+].join("\n");
+
+const ovalFull = [
+  " ▗▅▇█▇▅▖ ",
+  " ▐█████▌ ",
+  " ▐█████▌ ",
+  " ▐█████▌ ",
+  " ▐█████▌ ",
+  " ▐█████▌ ",
+  " ▝▀███▀▘ ",
+].join("\n");
+
+const shapeArtByShapeAndFill: Record<Shape, Record<Fill, string>> = {
+  oval: {
+    empty: ovalEmpty,
+    shaded: ovalLight,
+    full: ovalFull,
+  },
+  diamond: {
+    empty: diamondEmpty,
+    shaded: diamondLight,
+    full: diamondFull,
+  },
+  squiggle: {
+    empty: squiggleEmpty,
+    shaded: squiggleLight,
+    full: squiggleFull,
+  },
+};
+
+function getShape(shape: Shape, fill: Fill): string {
+  return shapeArtByShapeAndFill[shape][fill];
 }
 
 function stripOuterCardEdges(cardBody: string): string {
@@ -103,8 +161,7 @@ function stripOuterCardEdges(cardBody: string): string {
 }
 
 function drawCard1(shape: Shape, fill: Fill): string {
-  const fillCode = fillCharByFill[fill];
-  const asciiShape = getShape(shape, fillCode);
+  const asciiShape = getShape(shape, fill);
   const body = combineLineWise(
     getLeftCard(),
     emptySpace(),
@@ -133,8 +190,7 @@ function drawCard1(shape: Shape, fill: Fill): string {
 }
 
 function drawCard2(shape: Shape, fill: Fill): string {
-  const fillCode = fillCharByFill[fill];
-  const asciiShape = getShape(shape, fillCode);
+  const asciiShape = getShape(shape, fill);
   const body = combineLineWise(
     getLeftCard(),
     emptySpace(),
@@ -155,8 +211,7 @@ function drawCard2(shape: Shape, fill: Fill): string {
 }
 
 function drawCard3(shape: Shape, fill: Fill): string {
-  const fillCode = fillCharByFill[fill];
-  const asciiShape = getShape(shape, fillCode);
+  const asciiShape = getShape(shape, fill);
   const body = combineLineWise(getLeftCard(), asciiShape, asciiShape, asciiShape, getRightCard());
 
   return stripOuterCardEdges(body);
