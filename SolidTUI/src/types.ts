@@ -18,5 +18,4 @@ export interface MockGameState {
   remainingCards: number;
   foundSets: number;
   status: string;
-  prompt: string;
 }

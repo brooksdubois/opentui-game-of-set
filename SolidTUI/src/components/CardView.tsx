@@ -3,23 +3,16 @@ import type { SetCard } from "../types";
 
 interface CardViewProps {
   card: SetCard;
-  label: string;
 }
 
 export function CardView(props: CardViewProps) {
-  const borderColor = () => (props.card.selected ? "#f6d365" : "#dfe7eb");
-
   return (
     <box
       border
-      borderColor={borderColor()}
-      title={` ${props.label} `}
-      titleAlignment="center"
-      width={17}
-      height={10}
-      paddingX={1}
-      alignItems="center"
-      justifyContent="center"
+      borderColor="#dfe7eb"
+      width={35}
+      height={11}
+      padding={0}
     >
       <text fg={colorByCardColor[props.card.color]} wrapMode="none">
         {renderCardArt(props.card)}

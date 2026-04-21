@@ -6,10 +6,6 @@ interface BoardGridProps {
   cards: SetCard[];
 }
 
-function rowLabel(rowIndex: number): string {
-  return String.fromCharCode("a".charCodeAt(0) + rowIndex);
-}
-
 export function BoardGrid(props: BoardGridProps) {
   const rows = () => [
     props.cards.slice(0, 4),
@@ -20,22 +16,16 @@ export function BoardGrid(props: BoardGridProps) {
   return (
     <box
       id="board-grid"
-      border
-      borderColor="#52616b"
-      title=" Board "
-      padding={1}
+      width={149}
+      height={35}
       flexDirection="column"
-      gap={1}
-      flexGrow={1}
-      minHeight={35}
+      rowGap={1}
     >
       <For each={rows()}>
-        {(row, rowIndex) => (
-          <box flexDirection="row" columnGap={1} height={10}>
+        {(row) => (
+          <box flexDirection="row" columnGap={3} height={11}>
             <For each={row}>
-              {(card, columnIndex) => (
-                <CardView card={card} label={`${rowLabel(rowIndex())}${columnIndex() + 1}`} />
-              )}
+              {(card) => <CardView card={card} />}
             </For>
           </box>
         )}
