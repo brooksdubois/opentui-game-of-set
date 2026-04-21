@@ -21,14 +21,10 @@ kotlin {
 }
 
 application {
-    mainClass.set("org.brooks.MainWithPickingKt")
+    mainClass.set("org.brooks.MainKt")
 }
 
-tasks.register<JavaExec>("runJsonAdapter") {
-    group = "application"
-    description = "Runs the JSON-lines Set engine adapter."
-    mainClass.set("org.brooks.MainJsonAdapterKt")
-    classpath = sourceSets.main.get().runtimeClasspath
+tasks.named<JavaExec>("run") {
     standardInput = System.`in`
 }
 
