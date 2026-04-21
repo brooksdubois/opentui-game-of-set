@@ -53,7 +53,7 @@ function getSquiggle(fill: string): string {
     "  .''.   ",
     `  ╲${fill}${fill}${fill}╲  `,
     `  ╱${fill}${fill}${fill}╱  `,
-    ` ╱${fill}${fill}${fill}╲   `,
+    ` |${fill}${fill}${fill}|   `,
     `  ╲${fill}${fill}${fill}╲  `,
     `  ╱${fill}${fill}${fill}╱  `,
     "  '..'   ",

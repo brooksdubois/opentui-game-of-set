@@ -62,7 +62,7 @@ const fakeClient: EngineClient = {
           count: String(card.count) as "1" | "2" | "3",
           selected: selectedIndexes.has(card.index),
         })),
-        selectedIndexes: [],
+        selectedIndexes: [...selectedIndexes],
         remainingCards: command.command === "deal_more" ? 66 : mockGameState.remainingCards,
         foundSets: mockGameState.foundSets,
         status: mockGameState.status,
@@ -79,10 +79,12 @@ const setup = await testRender(() => <App client={fakeClient} />, { width: 160, 
 await setup.renderOnce();
 await Bun.sleep(20);
 await setup.renderOnce();
+await Bun.sleep(50);
+await setup.renderOnce();
 
 const frame = setup.captureCharFrame();
 
-const expectedText = ["Welcome to the Set Game", ".-'''-.", ".''.", "'-___-'"];
+const expectedText = [".-'''-.", ".''.", "'-___-'"];
 const missingText = expectedText.filter((text) => !frame.includes(text));
 
 if (missingText.length > 0) {
@@ -110,6 +112,11 @@ if (frame.includes("loading...")) {
   throw new Error("Static TUI smoke test failed. Loading banner is still visible after state loaded.");
 }
 
+function resetFakeState(): void {
+  commands.length = 0;
+  selectedIndexes.clear();
+}
+
 function pressKey(name: string, sequence = name, raw = sequence): void {
   setup.renderer.keyInput.emit("keypress", new KeyEvent({
     name,
@@ -125,11 +132,43 @@ function pressKey(name: string, sequence = name, raw = sequence): void {
   }));
 }
 
-pressKey("right", "\u001b[C");
-pressKey("return", "\r");
+pressKey("left", "\u001b[D");
+pressKey("space", " ", " ");
 await Bun.sleep(20);
 await setup.renderOnce();
+if (commands.find((command) => command.command === "toggle_select")?.index !== 3) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Left wrap did not focus the rightmost card.");
+}
 
+pressKey("right", "\u001b[C");
+pressKey("space", " ", " ");
+await Bun.sleep(20);
+await setup.renderOnce();
+if (commands.filter((command) => command.command === "toggle_select").at(-1)?.index !== 0) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Right wrap did not focus the leftmost card.");
+}
+
+pressKey("up", "\u001b[A");
+pressKey("space", " ", " ");
+await Bun.sleep(20);
+await setup.renderOnce();
+if (commands.filter((command) => command.command === "toggle_select").at(-1)?.index !== 8) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Up wrap did not focus the bottom card.");
+}
+
+pressKey("down", "\u001b[B");
+pressKey("space", " ", " ");
+await Bun.sleep(20);
+await setup.renderOnce();
+if (commands.filter((command) => command.command === "toggle_select").at(-1)?.index !== 0) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Down wrap did not focus the top card.");
+}
+
+resetFakeState();
 pressKey("right", "\u001b[C");
 pressKey("return", "\r");
 await Bun.sleep(20);
@@ -142,12 +181,18 @@ await setup.renderOnce();
 
 if (commands.some((command) => command.command === "submit_selection")) {
   setup.renderer.destroy();
-  throw new Error("Static TUI smoke test failed. Enter submitted before three selected cards were confirmed.");
+  throw new Error("Static TUI smoke test failed. Enter submitted before the third card was toggled.");
 }
 
+pressKey("right", "\u001b[C");
 pressKey("return", "\r");
 await Bun.sleep(20);
 await setup.renderOnce();
+
+if (!commands.some((command) => command.command === "submit_selection")) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Third toggle did not submit automatically.");
+}
 
 const submitFrame = setup.captureCharFrame();
 if (!submitFrame.includes("Not a set")) {

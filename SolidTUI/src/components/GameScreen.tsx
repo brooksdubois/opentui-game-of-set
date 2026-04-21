@@ -35,13 +35,18 @@ export function GameScreen(props: GameScreenProps) {
     clearInvalidHighlight();
     setBusy(true);
     try {
-      const response = await props.client.send(command);
-      applyResponse(response, command.command);
+      await executeCommand(command);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function executeCommand(command: EngineCommand): Promise<EngineResponse> {
+    const response = await props.client.send(command);
+    applyResponse(response, command.command);
+    return response;
   }
 
   function applyResponse(response: EngineResponse, command: EngineCommandName): void {
@@ -82,7 +87,7 @@ export function GameScreen(props: GameScreenProps) {
     const boardLength = state()?.board.length ?? 0;
     if (boardLength === 0) return;
 
-    setFocusedIndex((current) => Math.max(0, Math.min(boardLength - 1, current + delta)));
+    setFocusedIndex((current) => (current + delta + boardLength) % boardLength);
   }
 
   function moveHorizontal(direction: -1 | 1): void {
@@ -90,15 +95,35 @@ export function GameScreen(props: GameScreenProps) {
     if (boardLength === 0) return;
 
     const current = focusedIndex();
-    const column = current % 4;
+    const rowStart = Math.floor(current / 4) * 4;
+    const rowEnd = Math.min(rowStart + 3, boardLength - 1);
 
-    if (direction === -1 && column > 0) moveFocus(-1);
-    if (direction === 1 && column < 3) moveFocus(1);
+    if (direction === -1) {
+      setFocusedIndex(current === rowStart ? rowEnd : current - 1);
+      return;
+    }
+
+    setFocusedIndex(current === rowEnd ? rowStart : current + 1);
   }
 
   function toggleFocusedSelection(): void {
     const index = focusedBoardIndex();
-    if (index >= 0) void runCommand({ command: "toggle_select", index });
+    if (index < 0 || busy()) return;
+
+    clearInvalidHighlight();
+    setBusy(true);
+    void (async () => {
+      try {
+        const response = await executeCommand({ command: "toggle_select", index });
+        if (response.type === "state" && response.state.board.filter((card) => card.selected).length === 3) {
+          await executeCommand({ command: "submit_selection" });
+        }
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : String(error));
+      } finally {
+        setBusy(false);
+      }
+    })();
   }
 
   function handleKey(key: KeyEvent): void {
