@@ -1,6 +1,7 @@
-package org.brooks
+package org.brooks.rendering
 
 typealias ColorCode = String
+
 object ConsoleColor {
     const val RESET: ColorCode = "\u001B[0m"
     const val BLACK: ColorCode = "\u001B[30m"

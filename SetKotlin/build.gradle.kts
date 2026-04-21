@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "2.3.10"
+    application
 }
 
 group = "org.example"
@@ -15,6 +16,10 @@ dependencies {
 
 kotlin {
     jvmToolchain(21)
+}
+
+application {
+    mainClass.set("org.brooks.MainWithPickingKt")
 }
 
 tasks.test {
