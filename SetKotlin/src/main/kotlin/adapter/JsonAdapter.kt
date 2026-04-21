@@ -6,7 +6,6 @@ import kotlinx.serialization.json.Json
 import org.brooks.domain.Card
 import org.brooks.engine.GameEngine
 import org.brooks.engine.GameState
-import org.brooks.engine.GameStatus
 import org.brooks.protocol.AckResponse
 import org.brooks.protocol.CardDto
 import org.brooks.protocol.CommandNames
@@ -109,11 +108,27 @@ class JsonAdapter(
                     )
                 }
 
-                CommandNames.DealMore -> ErrorResponse(
-                    command = command.command,
-                    code = "unsupported_command",
-                    message = "deal_more is not supported by the current engine rules",
-                )
+                CommandNames.DealMore -> {
+                    val result = engine.dealMore()
+                    StateResponse(
+                        command = command.command,
+                        state = result.state.toDto(),
+                        message = if (result.cardsDealt == 0) {
+                            "no undealt cards remain"
+                        } else {
+                            "dealt ${result.cardsDealt} cards"
+                        },
+                    )
+                }
+
+                CommandNames.ReDeal -> {
+                    val result = engine.reDeal()
+                    StateResponse(
+                        command = command.command,
+                        state = result.state.toDto(),
+                        message = result.message,
+                    )
+                }
 
                 CommandNames.Shutdown -> AckResponse(
                     command = command.command,
@@ -157,7 +172,9 @@ class JsonAdapter(
             remainingCards = remainingCards,
             foundSets = foundSets,
             status = status.name.lowercase(),
-            gameOver = status == GameStatus.GameOver,
+            hasAnySetOnBoard = hasAnySetOnBoard,
+            gameComplete = gameComplete,
+            gameOver = gameComplete,
         )
     }
 

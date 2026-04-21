@@ -15,6 +15,7 @@ object CommandNames {
     const val ToggleSelect = "toggle_select"
     const val SubmitSelection = "submit_selection"
     const val DealMore = "deal_more"
+    const val ReDeal = "re_deal"
     const val Hint = "hint"
     const val Reset = "reset"
     const val Shutdown = "shutdown"
@@ -37,6 +38,8 @@ data class GameStateDto(
     val remainingCards: Int,
     val foundSets: Int,
     val status: String,
+    val hasAnySetOnBoard: Boolean,
+    val gameComplete: Boolean,
     val gameOver: Boolean,
 )
 

@@ -13,20 +13,25 @@ class GameEngine(
     private val board = mutableListOf<Card>()
     private val selectedIndexes = mutableListOf<Int>()
     private var foundSets = 0
-    private var status = GameStatus.Running
 
     init {
         reset()
     }
 
-    fun currentState(): GameState =
-        GameState(
+    fun currentState(): GameState {
+        val hasAnySetOnBoard = hasAnySetOnBoard()
+        val status = currentStatus()
+
+        return GameState(
             board = board.toList(),
             selectedCards = selectedCards(),
             remainingCards = deck.size,
             foundSets = foundSets,
             status = status,
+            hasAnySetOnBoard = hasAnySetOnBoard,
+            gameComplete = status == GameStatus.Complete,
         )
+    }
 
     fun reset(): GameState {
         val shuffledDeck = deckFactory()
@@ -38,7 +43,6 @@ class GameEngine(
         deck.clear()
         selectedIndexes.clear()
         foundSets = 0
-        status = GameStatus.Running
 
         board.addAll(shuffledDeck.take(layout.boardSize))
         deck.addAll(shuffledDeck.drop(layout.boardSize))
@@ -50,6 +54,8 @@ class GameEngine(
 
     fun select(boardIndex: Int): GameState {
         require(boardIndex in board.indices) { "Invalid board index: $boardIndex" }
+        require(boardIndex !in selectedIndexes) { "Card is already selected: $boardIndex" }
+        require(selectedIndexes.size < 3) { "Cannot select more than 3 cards" }
         selectedIndexes.add(boardIndex)
         return currentState()
     }
@@ -85,13 +91,14 @@ class GameEngine(
 
     fun submitSelectedSet(): SetSubmission {
         require(selectedIndexes.size == 3) { "Exactly 3 cards must be selected" }
+        require(selectedIndexes.distinct().size == 3) { "Selected cards must be distinct" }
 
         val submittedCards = selectedCards()
         val isSet = evaluator.areCardsASet(submittedCards.map { it.card })
 
         if (isSet) {
             foundSets += 1
-            replaceSelectedCards()
+            replaceOrRemoveMatchedSet(selectedIndexes)
         }
 
         selectedIndexes.clear()
@@ -103,45 +110,108 @@ class GameEngine(
         )
     }
 
-    fun findHint(): List<SelectedCard>? {
-        for (firstIndex in 0 until board.size - 2) {
-            for (secondIndex in firstIndex + 1 until board.size - 1) {
-                for (thirdIndex in secondIndex + 1 until board.size) {
-                    val cards = listOf(board[firstIndex], board[secondIndex], board[thirdIndex])
-                    if (evaluator.areCardsASet(cards)) {
-                        return listOf(firstIndex, secondIndex, thirdIndex).map { boardIndex ->
-                            SelectedCard(
-                                position = layout.positionOf(boardIndex),
-                                boardIndex = boardIndex,
-                                card = board[boardIndex],
-                            )
-                        }
-                    }
-                }
-            }
+    fun dealMore(count: Int = 3): DealMoreResult {
+        require(count > 0) { "Deal count must be positive" }
+        selectedIndexes.clear()
+
+        val cardsToDeal = minOf(count, deck.size)
+        repeat(cardsToDeal) {
+            board.add(deck.removeAt(0))
         }
 
-        return null
+        return DealMoreResult(
+            cardsDealt = cardsToDeal,
+            state = currentState(),
+        )
     }
 
-    private fun selectedCards(): List<SelectedCard> =
-        selectedIndexes.map { boardIndex ->
-            require(boardIndex in board.indices) { "Invalid board index: $boardIndex" }
-            SelectedCard(
-                position = layout.positionOf(boardIndex),
-                boardIndex = boardIndex,
-                card = board[boardIndex],
+    fun reDeal(): ReDealResult {
+        selectedIndexes.clear()
+
+        if (hasAnySetOnBoard()) {
+            return ReDealResult(
+                redealt = false,
+                cardsAdded = 0,
+                state = currentState(),
+                message = "board already contains a set",
             )
         }
 
-    private fun replaceSelectedCards() {
-        if (deck.size < selectedIndexes.size) {
-            status = GameStatus.GameOver
+        if (deck.isEmpty()) {
+            return ReDealResult(
+                redealt = false,
+                cardsAdded = 0,
+                state = currentState(),
+                message = "no undealt cards remain",
+            )
+        }
+
+        var cardsAdded = 0
+        while (!hasAnySetOnBoard() && deck.isNotEmpty()) {
+            val cardsToDeal = minOf(3, deck.size)
+            repeat(cardsToDeal) {
+                board.add(deck.removeAt(0))
+                cardsAdded += 1
+            }
+        }
+
+        board.shuffle()
+
+        return ReDealResult(
+            redealt = true,
+            cardsAdded = cardsAdded,
+            state = currentState(),
+            message = if (hasAnySetOnBoard()) {
+                "re-dealt board with a valid set"
+            } else {
+                "re-dealt board but no valid sets remain"
+            },
+        )
+    }
+
+    fun hasAnySetOnBoard(): Boolean =
+        evaluator.hasAnySet(board)
+
+    fun findHint(): List<SelectedCard>? {
+        return evaluator.findFirstSetIndexes(board)?.map(::selectedCardAt)
+    }
+
+    private fun selectedCards(): List<SelectedCard> =
+        selectedIndexes.map(::selectedCardAt)
+
+    private fun selectedCardAt(boardIndex: Int): SelectedCard {
+        require(boardIndex in board.indices) { "Invalid board index: $boardIndex" }
+        return SelectedCard(
+            position = layout.positionOf(boardIndex),
+            boardIndex = boardIndex,
+            card = board[boardIndex],
+        )
+    }
+
+    private fun replaceOrRemoveMatchedSet(matchedIndexes: List<Int>) {
+        val indexes = matchedIndexes.distinct().sorted()
+
+        if (board.size > layout.boardSize) {
+            indexes.asReversed().forEach { board.removeAt(it) }
             return
         }
 
-        selectedIndexes.forEach { boardIndex ->
-            board[boardIndex] = deck.removeAt(0)
+        val indexesToRemove = mutableListOf<Int>()
+        indexes.forEach { boardIndex ->
+            if (deck.isNotEmpty()) {
+                board[boardIndex] = deck.removeAt(0)
+            } else {
+                indexesToRemove.add(boardIndex)
+            }
         }
+
+        indexesToRemove.asReversed().forEach { board.removeAt(it) }
     }
+
+    private fun currentStatus(): GameStatus =
+        if (board.isEmpty() || !evaluator.hasAnySet(board + deck)) {
+            GameStatus.Complete
+        } else {
+            GameStatus.Running
+        }
 }

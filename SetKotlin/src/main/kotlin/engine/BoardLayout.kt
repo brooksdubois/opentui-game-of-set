@@ -21,7 +21,7 @@ class BoardLayout(
     }
 
     fun positionOf(index: Int): BoardPosition {
-        require(index in 0 until boardSize) { "Invalid board index: $index" }
+        require(index >= 0) { "Invalid board index: $index" }
         val row = ('a'.code + (index / columns)).toChar()
         val column = (index % columns) + 1
         return BoardPosition(row = row, column = column)

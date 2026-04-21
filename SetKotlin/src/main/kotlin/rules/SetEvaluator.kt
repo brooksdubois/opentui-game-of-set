@@ -15,6 +15,24 @@ object SetEvaluator {
         return areCardsASet(cards[0], cards[1], cards[2])
     }
 
+    fun hasAnySet(cards: List<Card>): Boolean =
+        findFirstSetIndexes(cards) != null
+
+    fun findFirstSetIndexes(cards: List<Card>): List<Int>? {
+        for (firstIndex in 0 until cards.size - 2) {
+            for (secondIndex in firstIndex + 1 until cards.size - 1) {
+                for (thirdIndex in secondIndex + 1 until cards.size) {
+                    val candidate = listOf(cards[firstIndex], cards[secondIndex], cards[thirdIndex])
+                    if (areCardsASet(candidate)) {
+                        return listOf(firstIndex, secondIndex, thirdIndex)
+                    }
+                }
+            }
+        }
+
+        return null
+    }
+
     private fun CardFaceValue.allSameOrAllDifferent(value2: CardFaceValue, value3: CardFaceValue): Boolean =
         (this == value2 && value2 == value3) ||
             (this != value2 && value2 != value3 && this != value3)
