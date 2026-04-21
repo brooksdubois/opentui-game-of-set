@@ -1,13 +1,8 @@
-interface HeaderProps {
-  title: string;
-}
 
-export function Header(props: HeaderProps) {
+export function Header() {
   return (
-    <box border borderColor="#6b7c85" paddingX={2} marginTop={1} height={3} alignItems="center">
-      <text fg="#f4f1de" attributes={1}>
-        {props.title}
-      </text>
+    <box paddingX={2} marginTop={1} height={6} alignItems="center">
+        <ascii_font text="Set" font="pallet" color="#f4f1de" backgroundColor="#0b0f10" selectable={false} />
     </box>
   );
 }

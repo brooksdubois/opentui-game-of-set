@@ -8,6 +8,29 @@ import { mockGameState } from "./mockState";
 const selectedIndexes = new Set<number>();
 const commands: EngineCommand[] = [];
 
+const loadingSetup = await testRender(
+  () => (
+    <App
+      client={{
+        send: async () => new Promise<EngineResponse>(() => {}),
+        shutdown: async () => {},
+      }}
+    />
+  ),
+  { width: 160, height: 44 },
+);
+await loadingSetup.renderOnce();
+const loadingFrame = loadingSetup.captureCharFrame();
+if (loadingFrame.includes("Starting engine") || loadingFrame.includes("Status:")) {
+  loadingSetup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Loading text leaked into the status bar.");
+}
+if (loadingFrame.includes("loading...")) {
+  loadingSetup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Removed loading banner is visible.");
+}
+loadingSetup.renderer.destroy();
+
 const fakeClient: EngineClient = {
   async send(command: EngineCommand): Promise<EngineResponse> {
     commands.push(command);
@@ -80,6 +103,11 @@ if ((frame.match(/Status:/g) ?? []).length !== 1) {
 if (frame.includes("Starting engine")) {
   setup.renderer.destroy();
   throw new Error("Static TUI smoke test failed. Startup text is still visible after state loaded.");
+}
+
+if (frame.includes("loading...")) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Loading banner is still visible after state loaded.");
 }
 
 function pressKey(name: string, sequence = name, raw = sequence): void {

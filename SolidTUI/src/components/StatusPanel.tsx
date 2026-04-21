@@ -10,7 +10,7 @@ interface StatusPanelProps {
 export function StatusPanel(props: StatusPanelProps) {
   const selectedCount = () => props.state?.board.filter((card) => card.selected).length ?? 0;
   const statusText = () => {
-    if (!props.state) return props.busy ? "Starting engine..." : props.message;
+    if (!props.state) return "";
 
     return `Status: ${props.state.status} | Deck: ${props.state.remainingCards} | Sets: ${
       props.state.foundSets
@@ -18,11 +18,9 @@ export function StatusPanel(props: StatusPanelProps) {
       props.busy ? "| Working..." : props.message ? `| ${props.message}` : ""
     }`;
   };
-  const clearedStatusText = () => statusText().padEnd(180, " ");
-
   return (
-    <box border borderColor="#3a4a50" paddingX={2} height={3} alignItems="center" width="100%">
-      <text fg="#d7e0e5" content={clearedStatusText()} wrapMode="none" truncate />
+    <box backgroundColor="#0b0f10" paddingX={2} height={1} alignItems="center" width="100%">
+      <text fg="#d7e0e5" content={statusText()} wrapMode="none" truncate />
     </box>
   );
 }

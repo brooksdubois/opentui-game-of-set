@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import {createEffect, createSignal, onCleanup, onMount, Show} from "solid-js";
 import { useKeyboard, useRenderer } from "@opentui/solid";
 import type { KeyEvent } from "@opentui/core";
 import type { EngineClient } from "../engine/engineClient";
@@ -17,7 +17,7 @@ export function GameScreen(props: GameScreenProps) {
   const renderer = useRenderer();
   const [state, setState] = createSignal<GameViewState | null>(null);
   const [focusedIndex, setFocusedIndex] = createSignal(0);
-  const [message, setMessage] = createSignal("Starting engine...");
+  const [message, setMessage] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const [invalidIndexes, setInvalidIndexes] = createSignal<Set<number>>(new Set());
   let invalidHighlightTimer: ReturnType<typeof setTimeout> | undefined;
@@ -183,21 +183,41 @@ export function GameScreen(props: GameScreenProps) {
   });
 
   return (
-    <box
-      id="game-screen"
-      flexDirection="column"
-      width="100%"
-      height="100%"
-      padding={0}
-      backgroundColor="#0b0f10"
-      gap={0}
-    >
-      <Header title={state()?.title ?? "Welcome to the Set Game"} />
-      <box flexGrow={1} alignItems="center" justifyContent="center" padding={1}>
-        <BoardGrid cards={state()?.board ?? []} focusedIndex={focusedIndex()} invalidIndexes={invalidIndexes()} />
+      <box
+          id="game-screen"
+          flexDirection="column"
+          width="100%"
+          height="100%"
+          padding={0}
+          backgroundColor="#0b0f10"
+          gap={0}
+      >
+        <Header />
+        <box
+            id="main-content"
+            width="100%"
+            flexGrow={1}
+            alignItems="center"
+            justifyContent="center"
+            padding={1}
+            backgroundColor="#0b0f10"
+            overflow="hidden"
+        >
+          <box
+              width="100%"
+              height="100%"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              backgroundColor="#0b0f10"
+          >
+            <Show when={state() !== null}>
+              <BoardGrid cards={state()?.board ?? []} focusedIndex={focusedIndex()} invalidIndexes={invalidIndexes()} />
+            </Show>
+          </box>
+        </box>
+        <StatusPanel state={state()} focusedIndex={focusedIndex()} message={message()} busy={busy()} />
       </box>
-      <StatusPanel state={state()} focusedIndex={focusedIndex()} message={message()} busy={busy()} />
-    </box>
   );
 }
 
