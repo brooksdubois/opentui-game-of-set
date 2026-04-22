@@ -8,9 +8,9 @@ A fully playable game of "Set" built with OpenTUI and Kotlin.
 
 ## Running the project
 
-Contains an executable App built for Apple Silicon.
+Contains an executable App built for Apple Silicon. Simply download the zipped repo and run.
 
-Otherwise:
+### Otherwise
 
 Install deps in the bun project:
 
