@@ -9,10 +9,12 @@ class GameEngine(
     private val evaluator: SetEvaluator = SetEvaluator,
     private val deckFactory: () -> List<Card> = { DeckFactory.standardSetDeck().shuffled() },
 ) {
+    private val maxBoardSize = 15
     private val deck = mutableListOf<Card>()
     private val board = mutableListOf<Card>()
     private val selectedIndexes = mutableListOf<Int>()
     private var foundSets = 0
+    private var forcedComplete = false
 
     init {
         reset()
@@ -43,6 +45,7 @@ class GameEngine(
         deck.clear()
         selectedIndexes.clear()
         foundSets = 0
+        forcedComplete = false
 
         board.addAll(shuffledDeck.take(layout.boardSize))
         deck.addAll(shuffledDeck.drop(layout.boardSize))
@@ -114,7 +117,18 @@ class GameEngine(
         require(count > 0) { "Deal count must be positive" }
         selectedIndexes.clear()
 
-        val cardsToDeal = minOf(count, deck.size)
+        if (board.size >= maxBoardSize) {
+            if (!hasAnySetOnBoard()) {
+                forcedComplete = true
+            }
+
+            return DealMoreResult(
+                cardsDealt = 0,
+                state = currentState(),
+            )
+        }
+
+        val cardsToDeal = minOf(count, deck.size, maxBoardSize - board.size)
         repeat(cardsToDeal) {
             board.add(deck.removeAt(0))
         }
@@ -134,6 +148,16 @@ class GameEngine(
                 cardsAdded = 0,
                 state = currentState(),
                 message = "board already contains a set",
+            )
+        }
+
+        if (board.size >= maxBoardSize) {
+            forcedComplete = true
+            return ReDealResult(
+                redealt = false,
+                cardsAdded = 0,
+                state = currentState(),
+                message = "no set found on 15-card board",
             )
         }
 
@@ -209,7 +233,7 @@ class GameEngine(
     }
 
     private fun currentStatus(): GameStatus =
-        if (board.isEmpty() || !evaluator.hasAnySet(board + deck)) {
+        if (forcedComplete || board.isEmpty() || !evaluator.hasAnySet(board + deck)) {
             GameStatus.Complete
         } else {
             GameStatus.Running

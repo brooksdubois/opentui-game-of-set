@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+EXEC_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+exec /usr/bin/open -a Terminal "$EXEC_DIR/run-set.command"
