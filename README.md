@@ -1,6 +1,6 @@
 # Set! 
 
-*In your terminal!**
+*In your terminal!*
 
 A fully playable game of "Set" built with OpenTUI and Kotlin.
 
