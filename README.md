@@ -6,9 +6,11 @@ A fully playable game of "Set" built with OpenTUI and Kotlin.
 
 <img width="1100" height="690" alt="Set-screenshot" src="https://github.com/user-attachments/assets/9598a8be-2a7e-4790-baa7-53dd4fe9df4f" />
 
+## Running the project
+
 Contains an executable App built for Apple Silicon.
 
-## Running the project
+Otherwise:
 
 Install deps in the bun project:
 
