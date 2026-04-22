@@ -10,15 +10,37 @@ interface PendingRequest {
   reject: (error: Error) => void;
 }
 
+interface EngineLaunchConfig {
+  command: string[];
+  cwd?: string;
+}
+
+function resolveEngineLaunchConfig(): EngineLaunchConfig {
+  const packagedEnginePath = Bun.env.SET_ENGINE_PATH ?? process.env.SET_ENGINE_PATH;
+
+  if (packagedEnginePath && packagedEnginePath.trim().length > 0) {
+    return {
+      command: [packagedEnginePath],
+    };
+  }
+
+  return {
+    command: ["./gradlew", "-q", "run"],
+    cwd: "../SetKotlin",
+  };
+}
+
 export class JsonLineEngineClient implements EngineClient {
   private subprocess: any;
   private stdin: { write: (input: string) => unknown; end?: () => unknown };
   private pending: PendingRequest[] = [];
   private closed = false;
 
-  constructor(command = ["./gradlew", "-q", "run"], cwd = "../SetKotlin") {
-    this.subprocess = Bun.spawn(command, {
-      cwd,
+  constructor(command?: string[], cwd?: string) {
+    const launchConfig = command ? { command, cwd } : resolveEngineLaunchConfig();
+
+    this.subprocess = Bun.spawn(launchConfig.command, {
+      cwd: launchConfig.cwd,
       stdin: "pipe",
       stdout: "pipe",
       stderr: "pipe",

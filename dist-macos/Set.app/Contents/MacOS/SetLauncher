@@ -1,4 +1,12 @@
 #!/bin/sh
 set -eu
 EXEC_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
-exec /usr/bin/open -a Terminal "$EXEC_DIR/run-set.command"
+
+/usr/bin/osascript <<OSA
+tell application "Terminal"
+    activate
+    do script quoted form of POSIX path of "${EXEC_DIR}/run-set.command"
+    delay 0.2
+    set bounds of front window to {120, 80, 1320, 870}
+end tell
+OSA
