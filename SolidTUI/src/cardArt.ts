@@ -59,7 +59,7 @@ const squiggleLight = [
   " (⣉⣉⣉│   ",
   "  ╲⣉⣉⣉╲  ",
   "  ╱⣉⣉⣉╱  ",
-  "  '──'    ",
+  "  '──'   ",
 ].join("\n");
 
 const squiggleFull = [
