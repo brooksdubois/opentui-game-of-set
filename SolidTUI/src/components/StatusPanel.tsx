@@ -12,7 +12,7 @@ export function StatusPanel(props: StatusPanelProps) {
   const statusText = () => {
     if (!props.state) return "";
 
-    return `Status: ${props.state.status} | Deck: ${props.state.remainingCards} | Sets: ${
+    return `Status: ${props.state.status} | Score: ${props.state.score} | Deck: ${props.state.remainingCards} | Sets: ${
       props.state.foundSets
     } | Selected: ${selectedCount()} | Focus: ${props.focusedIndex + 1} ${
       props.busy ? "| Working..." : props.message ? `| ${props.message}` : ""

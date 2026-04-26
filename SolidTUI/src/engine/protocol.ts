@@ -3,6 +3,7 @@ export type EngineCommandName =
   | "get_state"
   | "toggle_select"
   | "submit_selection"
+  | "submit_high_score"
   | "deal_more"
   | "re_deal"
   | "hint"
@@ -12,6 +13,7 @@ export type EngineCommandName =
 export interface EngineCommand {
   command: EngineCommandName;
   index?: number;
+  initials?: string;
 }
 
 export interface EngineCardDto {
@@ -28,10 +30,24 @@ export interface EngineStateDto {
   selectedIndexes: number[];
   remainingCards: number;
   foundSets: number;
+  score: number;
+  leaderboard: EngineLeaderboardEntryDto[];
+  leaderboardPendingEntry: boolean;
   status: string;
   hasAnySetOnBoard: boolean;
   gameComplete: boolean;
   gameOver: boolean;
+}
+
+export interface EngineScoreEventDto {
+  label: string;
+  points: number;
+}
+
+export interface EngineLeaderboardEntryDto {
+  initials: string;
+  score: number;
+  achievedAt: string;
 }
 
 export interface EngineSubmissionDto {
@@ -47,6 +63,7 @@ export interface EngineStateResponse {
   message?: string;
   submission?: EngineSubmissionDto;
   hintIndexes?: number[];
+  scoreEvents?: EngineScoreEventDto[];
 }
 
 export interface EngineErrorResponse {

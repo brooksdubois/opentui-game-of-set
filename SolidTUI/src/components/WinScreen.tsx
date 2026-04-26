@@ -1,4 +1,5 @@
 import { For, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import type { LeaderboardEntry } from "../scoring";
 
 const stageWidth = 149;
 const stageHeight = 31;
@@ -34,7 +35,15 @@ interface Spark {
   color: string;
 }
 
-export function WinScreen() {
+interface WinScreenProps {
+  score: number;
+  leaderboard: LeaderboardEntry[];
+  leaderboardPendingEntry: boolean;
+  pendingInitials: string;
+  savedInitials: string | null;
+}
+
+export function WinScreen(props: WinScreenProps) {
   const [tick, setTick] = createSignal(0);
   let interval: ReturnType<typeof setInterval> | undefined;
 
@@ -69,6 +78,20 @@ export function WinScreen() {
     });
   });
 
+  const initialsPrompt = createMemo(() => {
+    if (props.leaderboardPendingEntry) {
+      return `New top 10  Enter initials: ${(props.pendingInitials + "___").slice(0, 3)}`;
+    }
+    if (props.savedInitials) return `Saved: ${props.savedInitials}  Press N for new game`;
+    return null;
+  });
+
+  const footerText = createMemo(() => {
+    const prompt = initialsPrompt();
+    if (prompt) return prompt;
+    return "Press N for new game";
+  });
+
   return (
     <box
       id="win-screen"
@@ -101,6 +124,60 @@ export function WinScreen() {
         zIndex={1}
       >
         <ascii_font text="Win!" font="huge" color="#f6d365" backgroundColor="#0b0f10" selectable={false} />
+        <text
+          marginTop={1}
+          fg="#d7e0e5"
+          content={`Score: ${props.score}`}
+          wrapMode="none"
+          selectable={false}
+        />
+        <text
+          marginTop={1}
+          fg={props.leaderboardPendingEntry ? "#f6d365" : "#9fb2bd"}
+          content={footerText()}
+          wrapMode="none"
+          selectable={false}
+        />
+        <text
+          marginTop={1}
+          fg="#6f848f"
+          content={
+            props.leaderboardPendingEntry
+              ? "Type letters to save your score"
+              : "Top 10 local leaderboard"
+          }
+          wrapMode="none"
+          selectable={false}
+        />
+      </box>
+      <box
+        position="absolute"
+        left={43}
+        top={22}
+        width={63}
+        flexDirection="column"
+        paddingX={2}
+        paddingY={1}
+        border
+        borderColor="#35505d"
+        backgroundColor="#0d1417"
+        zIndex={2}
+      >
+        <text fg="#f6d365" content="Leaderboard" wrapMode="none" selectable={false} />
+        <For each={Array.from({ length: 10 }, (_, index) => props.leaderboard[index] ?? null)}>
+          {(entry, index) => (
+            <text
+              fg={entry ? "#d7e0e5" : "#6f848f"}
+              content={
+                entry
+                  ? `${String(index() + 1).padStart(2, " ")}. ${entry.initials.padEnd(3, " ")} ${String(entry.score).padStart(4, " ")}`
+                  : `${String(index() + 1).padStart(2, " ")}. ---    ---`
+              }
+              wrapMode="none"
+              selectable={false}
+            />
+          )}
+        </For>
       </box>
     </box>
   );

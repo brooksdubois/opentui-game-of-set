@@ -18,20 +18,30 @@ data class GameState(
     val selectedCards: List<SelectedCard>,
     val remainingCards: Int,
     val foundSets: Int,
+    val score: Int,
+    val leaderboard: List<LeaderboardEntry>,
+    val leaderboardPendingEntry: Boolean,
     val status: GameStatus,
     val hasAnySetOnBoard: Boolean,
     val gameComplete: Boolean,
+)
+
+data class ScoreEvent(
+    val label: String,
+    val points: Int,
 )
 
 data class SetSubmission(
     val isSet: Boolean,
     val selectedCards: List<SelectedCard>,
     val state: GameState,
+    val scoreEvents: List<ScoreEvent>,
 )
 
 data class DealMoreResult(
     val cardsDealt: Int,
     val state: GameState,
+    val scoreEvents: List<ScoreEvent>,
 )
 
 data class ReDealResult(
@@ -39,4 +49,10 @@ data class ReDealResult(
     val cardsAdded: Int,
     val state: GameState,
     val message: String,
+    val scoreEvents: List<ScoreEvent>,
+)
+
+data class HighScoreSubmissionResult(
+    val state: GameState,
+    val savedEntry: LeaderboardEntry,
 )

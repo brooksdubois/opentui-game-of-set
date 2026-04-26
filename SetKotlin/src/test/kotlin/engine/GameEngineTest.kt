@@ -6,9 +6,15 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.brooks.domain.Card
+import org.brooks.domain.Colors
+import org.brooks.domain.Counts
 import org.brooks.domain.DeckFactory
+import org.brooks.domain.Fills
 import org.brooks.engine.GameEngine
+import org.brooks.engine.LeaderboardEntry
+import org.brooks.engine.LeaderboardStore
 import org.brooks.engine.GameStatus
+import org.brooks.domain.Shapes
 import org.brooks.rules.SetEvaluator
 
 class GameEngineTest {
@@ -146,6 +152,142 @@ class GameEngineTest {
         assertEquals(GameStatus.Complete, state.status)
     }
 
+    @Test
+    fun validSetAwardsBaseAndAttributeBonuses() {
+        val scoringCards = scoringCards()
+        val fillerCards = noSetCards(12).filterNot { it in scoringCards }.take(9)
+        val deck = scoringCards + fillerCards
+        val engine = GameEngine(deckFactory = { deck })
+
+        engine.toggleSelection(0)
+        engine.toggleSelection(1)
+        engine.toggleSelection(2)
+        val submission = engine.submitSelectedSet()
+
+        assertTrue(submission.isSet)
+        assertEquals(106, submission.state.score)
+        assertEquals(
+            listOf("Set", "Color bonus", "Shading bonus", "Shape bonus", "Win bonus"),
+            submission.scoreEvents.map { it.label },
+        )
+    }
+
+    @Test
+    fun invalidSetAppliesPenalty() {
+        val engine = GameEngine(deckFactory = { DeckFactory.standardSetDeck() })
+
+        engine.toggleSelection(0)
+        engine.toggleSelection(1)
+        engine.toggleSelection(3)
+        val submission = engine.submitSelectedSet()
+
+        assertFalse(submission.isSet)
+        assertEquals(-2, submission.state.score)
+        assertEquals(listOf("Invalid set"), submission.scoreEvents.map { it.label })
+    }
+
+    @Test
+    fun quickSetBonusAppliesOnlyInsideDealMoreWindow() {
+        val clock = mutableListOf(1_000L)
+        val scoringCards = scoringCards()
+        val fillerCards = noSetCards(12).filterNot { it in scoringCards }.take(9)
+        val deck = scoringCards + fillerCards + DeckFactory.standardSetDeck().filterNot { it in (scoringCards + fillerCards) }
+        val engine = GameEngine(deckFactory = { deck }, nowMs = { clock.last() })
+
+        val dealMore = engine.dealMore()
+        assertEquals(3, dealMore.cardsDealt)
+
+        clock += 9_000L
+        engine.toggleSelection(0)
+        engine.toggleSelection(1)
+        engine.toggleSelection(2)
+        val quick = engine.submitSelectedSet()
+        assertEquals(16, quick.state.score)
+        assertEquals("Quick set", quick.scoreEvents.last().label)
+
+        val secondClock = mutableListOf(1_000L)
+        val secondEngine = GameEngine(deckFactory = { deck }, nowMs = { secondClock.last() })
+        secondEngine.dealMore()
+        secondClock += 12_000L
+        secondEngine.toggleSelection(0)
+        secondEngine.toggleSelection(1)
+        secondEngine.toggleSelection(2)
+        val expired = secondEngine.submitSelectedSet()
+        assertEquals(6, expired.state.score)
+        assertFalse(expired.scoreEvents.any { it.label == "Quick set" })
+    }
+
+    @Test
+    fun redealScoreMatchesBoardState() {
+        val withSetEngine = GameEngine(deckFactory = { DeckFactory.standardSetDeck() })
+        val withSetResult = withSetEngine.reDeal()
+        assertEquals(-3, withSetResult.state.score)
+        assertEquals(listOf("Redeal penalty"), withSetResult.scoreEvents.map { it.label })
+
+        val noSetBoard = noSetCards(12)
+        val noSetDeck = noSetBoard + DeckFactory.standardSetDeck().filterNot { it in noSetBoard }
+        val noSetEngine = GameEngine(deckFactory = { noSetDeck })
+        val noSetResult = noSetEngine.reDeal()
+        assertTrue(noSetResult.state.score >= 5)
+        assertEquals(listOf("Redeal rescue"), noSetResult.scoreEvents.map { it.label })
+    }
+
+    @Test
+    fun completedQualifyingGameMarksLeaderboardEntryPending() {
+        val store = InMemoryLeaderboardStore(
+            MutableList(9) { index ->
+                LeaderboardEntry(
+                    initials = "P$index",
+                    score = 99 - index,
+                    achievedAt = "2026-03-${index + 1}T00:00:00.000Z",
+                )
+            },
+        )
+        val scoringCards = scoringCards()
+        val fillerCards = noSetCards(12).filterNot { it in scoringCards }.take(9)
+        val deck = scoringCards + fillerCards
+        val engine = GameEngine(deckFactory = { deck }, leaderboardStore = store)
+
+        engine.toggleSelection(0)
+        engine.toggleSelection(1)
+        engine.toggleSelection(2)
+        val submission = engine.submitSelectedSet()
+
+        assertTrue(submission.state.gameComplete)
+        assertTrue(submission.state.leaderboardPendingEntry)
+        assertEquals(106, submission.state.score)
+    }
+
+    @Test
+    fun submitHighScorePersistsAndClearsPendingFlag() {
+        val store = InMemoryLeaderboardStore(
+            MutableList(9) { index ->
+                LeaderboardEntry(
+                    initials = "P$index",
+                    score = 99 - index,
+                    achievedAt = "2026-03-${index + 1}T00:00:00.000Z",
+                )
+            },
+        )
+        val scoringCards = scoringCards()
+        val fillerCards = noSetCards(12).filterNot { it in scoringCards }.take(9)
+        val deck = scoringCards + fillerCards
+        val clock = mutableListOf(1_000L)
+        val engine = GameEngine(deckFactory = { deck }, leaderboardStore = store, nowMs = { clock.last() })
+
+        engine.toggleSelection(0)
+        engine.toggleSelection(1)
+        engine.toggleSelection(2)
+        engine.submitSelectedSet()
+        clock += 2_000L
+        val saveResult = engine.submitHighScore("abc")
+
+        assertEquals("ABC", saveResult.savedEntry.initials)
+        assertFalse(saveResult.state.leaderboardPendingEntry)
+        assertEquals("ABC", store.savedEntries.first().initials)
+        assertEquals(10, store.savedEntries.size)
+    }
+
     private fun noSetCards(count: Int): List<Card> {
         val cards = mutableListOf<Card>()
 
@@ -162,5 +304,25 @@ class GameEngineTest {
 
     private fun assertBoardHasNoDuplicates(cards: List<Card>) {
         assertEquals(cards.size, cards.toSet().size)
+    }
+
+    private fun scoringCards(): List<Card> =
+        listOf(
+            Card(shape = Shapes.Oval, color = Colors.Red, fill = Fills.Shaded, count = Counts.`1`),
+            Card(shape = Shapes.Squiggle, color = Colors.Green, fill = Fills.Light, count = Counts.`1`),
+            Card(shape = Shapes.Diamond, color = Colors.Blue, fill = Fills.Full, count = Counts.`1`),
+        )
+
+    private class InMemoryLeaderboardStore(
+        private val initialEntries: List<LeaderboardEntry> = emptyList(),
+    ) : LeaderboardStore {
+        var savedEntries: List<LeaderboardEntry> = initialEntries
+            private set
+
+        override fun load(): List<LeaderboardEntry> = savedEntries
+
+        override fun save(entries: List<LeaderboardEntry>) {
+            savedEntries = entries
+        }
     }
 }

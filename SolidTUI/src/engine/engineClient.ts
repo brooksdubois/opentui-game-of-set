@@ -13,20 +13,31 @@ interface PendingRequest {
 interface EngineLaunchConfig {
   command: string[];
   cwd?: string;
+  env?: Record<string, string>;
 }
 
 function resolveEngineLaunchConfig(): EngineLaunchConfig {
   const packagedEnginePath = Bun.env.SET_ENGINE_PATH ?? process.env.SET_ENGINE_PATH;
+  const scoreboardPath =
+    Bun.env.SET_SCOREBOARD_PATH ?? process.env.SET_SCOREBOARD_PATH ?? `${process.cwd()}/.set-high-scores.json`;
 
   if (packagedEnginePath && packagedEnginePath.trim().length > 0) {
     return {
       command: [packagedEnginePath],
+      env: {
+        ...process.env,
+        SET_SCOREBOARD_PATH: scoreboardPath,
+      },
     };
   }
 
   return {
     command: ["./gradlew", "-q", "run"],
     cwd: "../SetKotlin",
+    env: {
+      ...process.env,
+      SET_SCOREBOARD_PATH: scoreboardPath,
+    },
   };
 }
 
@@ -41,6 +52,7 @@ export class JsonLineEngineClient implements EngineClient {
 
     this.subprocess = Bun.spawn(launchConfig.command, {
       cwd: launchConfig.cwd,
+      env: launchConfig.env,
       stdin: "pipe",
       stdout: "pipe",
       stderr: "pipe",

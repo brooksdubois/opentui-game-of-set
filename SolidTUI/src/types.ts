@@ -18,6 +18,9 @@ export interface GameViewState {
   board: SetCard[];
   remainingCards: number;
   foundSets: number;
+  score: number;
+  leaderboard: { initials: string; score: number; achievedAt: string }[];
+  leaderboardPendingEntry: boolean;
   status: string;
   hasAnySetOnBoard: boolean;
   gameComplete: boolean;

@@ -13,6 +13,8 @@ import org.brooks.protocol.EngineCommand
 import org.brooks.protocol.EngineResponse
 import org.brooks.protocol.ErrorResponse
 import org.brooks.protocol.GameStateDto
+import org.brooks.protocol.LeaderboardEntryDto
+import org.brooks.protocol.ScoreEventDto
 import org.brooks.protocol.StateResponse
 import org.brooks.protocol.SubmissionDto
 
@@ -95,6 +97,7 @@ class JsonAdapter(
                             isSet = submission.isSet,
                             selectedIndexes = submission.selectedCards.map { it.boardIndex },
                         ),
+                        scoreEvents = submission.scoreEvents.toDto(),
                     )
                 }
 
@@ -114,6 +117,7 @@ class JsonAdapter(
                         command = command.command,
                         state = result.state.toDto(),
                         message = result.message(),
+                        scoreEvents = result.scoreEvents.toDto(),
                     )
                 }
 
@@ -123,6 +127,18 @@ class JsonAdapter(
                         command = command.command,
                         state = result.state.toDto(),
                         message = result.message,
+                        scoreEvents = result.scoreEvents.toDto(),
+                    )
+                }
+
+                CommandNames.SubmitHighScore -> {
+                    val initials = command.initials
+                        ?: return missingField(command.command, "initials")
+                    val result = engine.submitHighScore(initials)
+                    StateResponse(
+                        command = command.command,
+                        state = result.state.toDto(),
+                        message = "high score saved for ${result.savedEntry.initials}",
                     )
                 }
 
@@ -175,12 +191,24 @@ class JsonAdapter(
             selectedIndexes = selectedIndexes,
             remainingCards = remainingCards,
             foundSets = foundSets,
+            score = score,
+            leaderboard = leaderboard.map {
+                LeaderboardEntryDto(
+                    initials = it.initials,
+                    score = it.score,
+                    achievedAt = it.achievedAt,
+                )
+            },
+            leaderboardPendingEntry = leaderboardPendingEntry,
             status = status.name.lowercase(),
             hasAnySetOnBoard = hasAnySetOnBoard,
             gameComplete = gameComplete,
             gameOver = gameComplete,
         )
     }
+
+    private fun List<org.brooks.engine.ScoreEvent>.toDto(): List<ScoreEventDto>? =
+        takeIf { it.isNotEmpty() }?.map { ScoreEventDto(label = it.label, points = it.points) }
 
     private fun Card.toDto(index: Int, selected: Boolean): CardDto =
         CardDto(

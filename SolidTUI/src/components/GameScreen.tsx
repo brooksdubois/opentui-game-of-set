@@ -4,6 +4,8 @@ import type { KeyEvent, MouseEvent } from "@opentui/core";
 import type { EngineClient } from "../engine/engineClient";
 import { engineStateToViewState } from "../engine/mappers";
 import type { EngineCommand, EngineCommandName, EngineResponse } from "../engine/protocol";
+import { toBonusTickerEvents } from "../scoring";
+import type { BonusTickerEvent } from "../scoring";
 import type { GameViewState } from "../types";
 import type { SetCard } from "../types";
 import { BoardGrid } from "./BoardGrid";
@@ -27,6 +29,9 @@ export function GameScreen(props: GameScreenProps) {
   const [message, setMessage] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const [invalidIndexes, setInvalidIndexes] = createSignal<Set<number>>(new Set());
+  const [bonusEvents, setBonusEvents] = createSignal<BonusTickerEvent[]>([]);
+  const [pendingInitials, setPendingInitials] = createSignal("");
+  const [savedInitials, setSavedInitials] = createSignal<string | null>(null);
   let invalidHighlightTimer: ReturnType<typeof setTimeout> | undefined;
   let lastMousePoint: MousePoint | undefined;
   let suppressedMousePoint: MousePoint | undefined;
@@ -63,11 +68,28 @@ export function GameScreen(props: GameScreenProps) {
   }
 
   function applyResponse(response: EngineResponse, command: EngineCommandName): void {
+    const previousState = state();
+    const wasWon = previousState?.gameComplete === true;
+
     if (response.type === "state") {
+      const now = Date.now();
+      if (command === "new_game") {
+        setPendingInitials("");
+        setSavedInitials(null);
+        setBonusEvents([]);
+      }
+      appendBonusEvents(toBonusTickerEvents(response.scoreEvents ?? [], now));
       setMessage(response.message ?? messageForCommand(command, response));
       setState(engineStateToViewState(response.state));
       if (command === "submit_selection" && response.submission?.isSet === false) {
         flashInvalidSelection(response.submission.selectedIndexes);
+      }
+      if (!wasWon && response.state.gameComplete && !response.state.leaderboardPendingEntry) {
+        setPendingInitials("");
+      }
+      if (command === "submit_high_score" && !response.state.leaderboardPendingEntry) {
+        setSavedInitials(pendingInitials());
+        setPendingInitials("");
       }
       return;
     }
@@ -88,12 +110,60 @@ export function GameScreen(props: GameScreenProps) {
     setInvalidIndexes(new Set<number>());
   }
 
+  function appendBonusEvents(events: BonusTickerEvent[]): void {
+    if (events.length === 0) return;
+    setBonusEvents((current) => [...current, ...events].slice(-8));
+  }
+
   function flashInvalidSelection(indexes: number[]): void {
     setInvalidIndexes(new Set(indexes));
     invalidHighlightTimer = setTimeout(() => {
       setInvalidIndexes(new Set<number>());
       invalidHighlightTimer = undefined;
     }, 1000);
+  }
+
+  async function commitHighScore(initials: string): Promise<void> {
+    if (!state()?.leaderboardPendingEntry || initials.length !== 3 || busy()) return;
+
+    setBusy(true);
+    try {
+      await executeCommand({ command: "submit_high_score", initials });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updatePendingInitials(nextInitials: string): void {
+    if (!state()?.leaderboardPendingEntry) return;
+    setPendingInitials(nextInitials);
+    if (nextInitials.length === 3) {
+      void commitHighScore(nextInitials);
+    }
+  }
+
+  function handleWinScreenKey(key: KeyEvent): void {
+    const name = key.name.toLowerCase();
+
+    if (state()?.leaderboardPendingEntry) {
+      if (name === "backspace" || name === "delete") {
+        updatePendingInitials(pendingInitials().slice(0, -1));
+        return;
+      }
+
+      const char = (key.sequence ?? key.raw ?? "").toUpperCase();
+      if (/^[A-Z]$/.test(char) && pendingInitials().length < 3) {
+        updatePendingInitials(`${pendingInitials()}${char}`);
+      }
+      return;
+    }
+
+    if (name === "n") {
+      setFocusedIndex(0);
+      void runCommand({ command: "new_game" });
+    }
   }
 
   function moveFocus(delta: number): void {
@@ -189,10 +259,7 @@ export function GameScreen(props: GameScreenProps) {
     }
 
     if (isWon()) {
-      if (name === "n") {
-        setFocusedIndex(0);
-        void runCommand({ command: "new_game" });
-      }
+      handleWinScreenKey(key);
       return;
     }
 
@@ -319,18 +386,30 @@ export function GameScreen(props: GameScreenProps) {
                       focusedIndex={visualFocusedIndex()}
                       hoveredIndex={visualHoveredIndex()}
                       invalidIndexes={invalidIndexes()}
+                      bonusEvents={bonusEvents()}
                       compact={isCompactBoard()}
                       onCardClick={handleCardClick}
                       onCardHover={handleCardHover}
                   />
                 }
               >
-                <WinScreen />
+                <WinScreen
+                  score={state()?.score ?? 0}
+                  leaderboard={state()?.leaderboard ?? []}
+                  leaderboardPendingEntry={state()?.leaderboardPendingEntry ?? false}
+                  pendingInitials={pendingInitials()}
+                  savedInitials={savedInitials()}
+                />
               </Show>
             </Show>
           </box>
         </box>
-        <StatusPanel state={state()} focusedIndex={focusedIndex()} message={message()} busy={busy()} />
+        <StatusPanel
+          state={state()}
+          focusedIndex={focusedIndex()}
+          message={state()?.leaderboardPendingEntry ? "High score pending initials" : message()}
+          busy={busy()}
+        />
       </box>
   );
 }

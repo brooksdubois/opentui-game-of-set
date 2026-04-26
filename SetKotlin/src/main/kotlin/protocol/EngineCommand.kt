@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class EngineCommand(
     val command: String,
     val index: Int? = null,
+    val initials: String? = null,
 )
 
 object CommandNames {
@@ -18,6 +19,7 @@ object CommandNames {
     const val ReDeal = "re_deal"
     const val Hint = "hint"
     const val Reset = "reset"
+    const val SubmitHighScore = "submit_high_score"
     const val Shutdown = "shutdown"
 }
 
@@ -37,10 +39,26 @@ data class GameStateDto(
     val selectedIndexes: List<Int>,
     val remainingCards: Int,
     val foundSets: Int,
+    val score: Int,
+    val leaderboard: List<LeaderboardEntryDto>,
+    val leaderboardPendingEntry: Boolean,
     val status: String,
     val hasAnySetOnBoard: Boolean,
     val gameComplete: Boolean,
     val gameOver: Boolean,
+)
+
+@Serializable
+data class LeaderboardEntryDto(
+    val initials: String,
+    val score: Int,
+    val achievedAt: String,
+)
+
+@Serializable
+data class ScoreEventDto(
+    val label: String,
+    val points: Int,
 )
 
 @Serializable
@@ -64,6 +82,7 @@ data class StateResponse(
     val message: String? = null,
     val submission: SubmissionDto? = null,
     val hintIndexes: List<Int>? = null,
+    val scoreEvents: List<ScoreEventDto>? = null,
 ) : EngineResponse
 
 @Serializable

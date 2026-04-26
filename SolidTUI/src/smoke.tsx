@@ -2,11 +2,65 @@ import { testRender } from "@opentui/solid";
 import { KeyEvent } from "@opentui/core";
 import { App } from "./components/App";
 import type { EngineClient } from "./engine/engineClient";
-import type { EngineCardDto, EngineCommand, EngineResponse } from "./engine/protocol";
+import type { EngineCardDto, EngineCommand, EngineResponse, EngineScoreEventDto } from "./engine/protocol";
 import { mockGameState } from "./mockState";
 
 const selectedIndexes = new Set<number>();
 const commands: EngineCommand[] = [];
+let fakeScore = 0;
+
+function toEngineCard(
+  card: (typeof mockGameState.board)[number],
+  selected = selectedIndexes.has(card.index),
+): EngineCardDto {
+  return {
+    index: card.index,
+    shape: card.shape === "oval" ? "O" : card.shape === "diamond" ? "D" : "S",
+    color: card.color === "red" ? "R" : card.color === "green" ? "G" : "B",
+    fill: card.fill === "empty" ? "L" : card.fill === "shaded" ? "S" : "F",
+    count: String(card.count) as "1" | "2" | "3",
+    selected,
+  };
+}
+
+function createStateResponse(
+  command: EngineCommand["command"],
+  options: {
+    board?: EngineCardDto[];
+    selectedIndexes?: number[];
+    remainingCards?: number;
+    foundSets?: number;
+    score?: number;
+    leaderboard?: Array<{ initials: string; score: number; achievedAt: string }>;
+    leaderboardPendingEntry?: boolean;
+    status?: string;
+    hasAnySetOnBoard?: boolean;
+    gameComplete?: boolean;
+    submission?: { isSet: boolean; selectedIndexes: number[] };
+    scoreEvents?: EngineScoreEventDto[];
+  } = {},
+): EngineResponse {
+  return {
+    type: "state",
+    ok: true,
+    command,
+    submission: options.submission,
+    scoreEvents: options.scoreEvents,
+    state: {
+      board: options.board ?? mockGameState.board.map((card) => toEngineCard(card)),
+      selectedIndexes: options.selectedIndexes ?? [...selectedIndexes],
+      remainingCards: options.remainingCards ?? mockGameState.remainingCards,
+      foundSets: options.foundSets ?? mockGameState.foundSets,
+      score: options.score ?? fakeScore,
+      leaderboard: options.leaderboard ?? mockGameState.leaderboard,
+      leaderboardPendingEntry: options.leaderboardPendingEntry ?? mockGameState.leaderboardPendingEntry,
+      status: options.status ?? mockGameState.status,
+      hasAnySetOnBoard: options.hasAnySetOnBoard ?? mockGameState.hasAnySetOnBoard,
+      gameComplete: options.gameComplete ?? mockGameState.gameComplete,
+      gameOver: options.gameComplete ?? mockGameState.gameComplete,
+    },
+  };
+}
 
 const loadingSetup = await testRender(
   () => (
@@ -35,42 +89,38 @@ const fakeClient: EngineClient = {
   async send(command: EngineCommand): Promise<EngineResponse> {
     commands.push(command);
     const submissionIndexes = command.command === "submit_selection" ? [...selectedIndexes] : [];
-    if (command.command === "new_game") selectedIndexes.clear();
+    if (command.command === "new_game") {
+      selectedIndexes.clear();
+      fakeScore = 0;
+      return createStateResponse(command.command, { score: 0 });
+    }
     if (command.command === "toggle_select" && command.index !== undefined) {
       if (selectedIndexes.has(command.index)) {
         selectedIndexes.delete(command.index);
       } else {
         selectedIndexes.add(command.index);
       }
+      return createStateResponse(command.command);
     }
-    if (command.command === "submit_selection") selectedIndexes.clear();
+    if (command.command === "submit_selection") {
+      selectedIndexes.clear();
+      fakeScore -= 2;
+      return createStateResponse(command.command, {
+        submission: { isSet: false, selectedIndexes: submissionIndexes },
+        scoreEvents: [{ label: "Invalid set", points: -2 }],
+      });
+    }
+    if (command.command === "deal_more") {
+      return createStateResponse(command.command, { remainingCards: 66 });
+    }
+    if (command.command === "re_deal") {
+      fakeScore -= 3;
+      return createStateResponse(command.command, {
+        scoreEvents: [{ label: "Redeal penalty", points: -3 }],
+      });
+    }
 
-    return {
-      type: "state",
-      ok: true,
-      command: command.command,
-      submission:
-        command.command === "submit_selection"
-          ? { isSet: false, selectedIndexes: submissionIndexes }
-          : undefined,
-      state: {
-        board: mockGameState.board.map((card) => ({
-          index: card.index,
-          shape: card.shape === "oval" ? "O" : card.shape === "diamond" ? "D" : "S",
-          color: card.color === "red" ? "R" : card.color === "green" ? "G" : "B",
-          fill: card.fill === "empty" ? "L" : card.fill === "shaded" ? "S" : "F",
-          count: String(card.count) as "1" | "2" | "3",
-          selected: selectedIndexes.has(card.index),
-        })),
-        selectedIndexes: [...selectedIndexes],
-        remainingCards: command.command === "deal_more" ? 66 : mockGameState.remainingCards,
-        foundSets: mockGameState.foundSets,
-        status: mockGameState.status,
-        hasAnySetOnBoard: mockGameState.hasAnySetOnBoard,
-        gameComplete: mockGameState.gameComplete,
-        gameOver: false,
-      },
-    };
+    return createStateResponse(command.command);
   },
   async shutdown(): Promise<void> {},
 };
@@ -84,7 +134,7 @@ await setup.renderOnce();
 
 const frame = setup.captureCharFrame();
 
-const expectedText = [".-'''-.", ".''.", "'-___-'"];
+const expectedText = [".-'''-.", ".──.", "'-___-'"];
 const missingText = expectedText.filter((text) => !frame.includes(text));
 
 if (missingText.length > 0) {
@@ -102,6 +152,11 @@ if ((frame.match(/Status:/g) ?? []).length !== 1) {
   throw new Error("Static TUI smoke test failed. Status line is duplicated.");
 }
 
+if (!frame.includes("Score: 0")) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Score was not rendered in the status line.");
+}
+
 if (frame.includes("Starting engine")) {
   setup.renderer.destroy();
   throw new Error("Static TUI smoke test failed. Startup text is still visible after state loaded.");
@@ -115,6 +170,7 @@ if (frame.includes("loading...")) {
 function resetFakeState(): void {
   commands.length = 0;
   selectedIndexes.clear();
+  fakeScore = 0;
 }
 
 function pressKey(name: string, sequence = name, raw = sequence): void {
@@ -227,14 +283,18 @@ if (commands.filter((command) => command.command === "toggle_select").at(-1)?.in
 }
 
 resetFakeState();
+pressKey("n");
+await Bun.sleep(20);
+await setup.renderOnce();
+resetFakeState();
 pressKey("right", "\u001b[C");
 pressKey("return", "\r");
-await Bun.sleep(20);
+await Bun.sleep(80);
 await setup.renderOnce();
 
 pressKey("right", "\u001b[C");
 pressKey("return", "\r");
-await Bun.sleep(20);
+await Bun.sleep(80);
 await setup.renderOnce();
 
 if (commands.some((command) => command.command === "submit_selection")) {
@@ -256,6 +316,11 @@ const submitFrame = setup.captureCharFrame();
 if (!submitFrame.includes("Not a set")) {
   setup.renderer.destroy();
   throw new Error("Static TUI smoke test failed. Invalid submit message is missing.");
+}
+
+if (!/Score:\s*-2\b/.test(submitFrame)) {
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Invalid set penalty was not reflected in the score.");
 }
 
 pressKey("d");
@@ -295,29 +360,22 @@ const compactExtraCards = mockGameState.board.slice(0, 3).map((card, index) => (
   index: 12 + index,
 }));
 
-function toEngineCard(card: (typeof mockGameState.board)[number]): EngineCardDto {
-  return {
-    index: card.index,
-    shape: card.shape === "oval" ? "O" : card.shape === "diamond" ? "D" : "S",
-    color: card.color === "red" ? "R" : card.color === "green" ? "G" : "B",
-    fill: card.fill === "empty" ? "L" : card.fill === "shaded" ? "S" : "F",
-    count: String(card.count) as "1" | "2" | "3",
-    selected: compactSelectedIndexes.has(card.index),
-  };
-}
-
 const compactClient: EngineClient = {
   async send(command: EngineCommand): Promise<EngineResponse> {
     const submissionIndexes = command.command === "submit_selection" ? [...compactSelectedIndexes] : [];
+    let compactScoreEvents: EngineScoreEventDto[] | undefined;
+    let compactScore = compactBoard.length > 12 ? 0 : 0;
 
     if (command.command === "new_game") {
       compactBoard = [...mockGameState.board];
       compactSelectedIndexes.clear();
+      compactScore = 0;
     }
 
     if (command.command === "deal_more") {
       compactBoard = [...mockGameState.board, ...compactExtraCards];
       compactSelectedIndexes.clear();
+      compactScore = 0;
     }
 
     if (command.command === "toggle_select" && command.index !== undefined) {
@@ -331,6 +389,14 @@ const compactClient: EngineClient = {
     if (command.command === "submit_selection") {
       compactBoard = [...mockGameState.board];
       compactSelectedIndexes.clear();
+      compactScore = 16;
+      compactScoreEvents = [
+        { label: "Set", points: 3 },
+        { label: "Color bonus", points: 1 },
+        { label: "Shading bonus", points: 1 },
+        { label: "Shape bonus", points: 1 },
+        { label: "Quick set", points: 10 },
+      ];
     }
 
     return {
@@ -341,11 +407,15 @@ const compactClient: EngineClient = {
         command.command === "submit_selection"
           ? { isSet: true, selectedIndexes: submissionIndexes }
           : undefined,
+      scoreEvents: compactScoreEvents,
       state: {
-        board: compactBoard.map(toEngineCard),
+        board: compactBoard.map((card) => toEngineCard(card, compactSelectedIndexes.has(card.index))),
         selectedIndexes: [...compactSelectedIndexes],
         remainingCards: compactBoard.length > 12 ? 66 : mockGameState.remainingCards,
         foundSets: command.command === "submit_selection" ? 1 : mockGameState.foundSets,
+        score: compactScore,
+        leaderboard: [],
+        leaderboardPendingEntry: false,
         status: mockGameState.status,
         hasAnySetOnBoard: mockGameState.hasAnySetOnBoard,
         gameComplete: mockGameState.gameComplete,
@@ -419,6 +489,200 @@ if (findFirstCardTopRow(restoredFrame) < normalFirstCardTopRow) {
   throw new Error("Static TUI smoke test failed. Clearing a compact set did not restore the normal header layout.");
 }
 
+if (!restoredFrame.includes("Score: 16")) {
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Quick-set scoring did not reach the expected total.");
+}
+
+if (!restoredFrame.includes("Quick set")) {
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Bonus ticker did not render quick-set feedback.");
+}
+
+const seededLeaderboard = Array.from({ length: 9 }, (_, index) => ({
+  initials: `P${index}`,
+  score: 99 - index,
+  achievedAt: `2026-03-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+}));
+
+const winCommands: EngineCommand[] = [];
+let winState: "won" | "fresh" = "won";
+let winLeaderboard = [...seededLeaderboard];
+let winPendingEntry = true;
+
+const winClient: EngineClient = {
+  async send(command: EngineCommand): Promise<EngineResponse> {
+    winCommands.push(command);
+    if (command.command === "new_game" && winState === "fresh") {
+      return {
+        type: "state",
+        ok: true,
+        command: command.command,
+        state: {
+          board: mockGameState.board.map((card) => ({
+            index: card.index,
+            shape: card.shape === "oval" ? "O" : card.shape === "diamond" ? "D" : "S",
+            color: card.color === "red" ? "R" : card.color === "green" ? "G" : "B",
+            fill: card.fill === "empty" ? "L" : card.fill === "shaded" ? "S" : "F",
+            count: String(card.count) as "1" | "2" | "3",
+            selected: false,
+          })),
+          selectedIndexes: [],
+          remainingCards: mockGameState.remainingCards,
+          foundSets: 0,
+          score: 0,
+          leaderboard: winLeaderboard,
+          leaderboardPendingEntry: false,
+          status: "Running",
+          hasAnySetOnBoard: true,
+          gameComplete: false,
+          gameOver: false,
+        },
+      };
+    }
+
+    if (command.command === "submit_high_score" && command.initials) {
+      winLeaderboard = [
+        {
+          initials: command.initials.toUpperCase(),
+          score: 100,
+          achievedAt: "2026-04-25T00:00:00.000Z",
+        },
+        ...winLeaderboard,
+      ];
+      winPendingEntry = false;
+      return {
+        type: "state",
+        ok: true,
+        command: command.command,
+        message: `high score saved for ${command.initials.toUpperCase()}`,
+        state: {
+          board: [],
+          selectedIndexes: [],
+          remainingCards: 0,
+          foundSets: 9,
+          score: 100,
+          leaderboard: winLeaderboard,
+          leaderboardPendingEntry: false,
+          status: "Won",
+          hasAnySetOnBoard: false,
+          gameComplete: true,
+          gameOver: false,
+        },
+      };
+    }
+
+    winState = "fresh";
+    return {
+      type: "state",
+      ok: true,
+      command: command.command,
+      state: {
+        board: [],
+        selectedIndexes: [],
+        remainingCards: 0,
+        foundSets: 9,
+        score: 100,
+        leaderboard: winLeaderboard,
+        leaderboardPendingEntry: winPendingEntry,
+        status: "Won",
+        hasAnySetOnBoard: false,
+        gameComplete: true,
+        gameOver: false,
+      },
+    };
+  },
+  async shutdown(): Promise<void> {},
+};
+
+const winSetup = await testRender(() => <App client={winClient} />, { width: 160, height: 44 });
+await winSetup.renderOnce();
+await Bun.sleep(30);
+await winSetup.renderOnce();
+await Bun.sleep(30);
+await winSetup.renderOnce();
+
+function pressWinKey(name: string, sequence = name, raw = sequence): void {
+  winSetup.renderer.keyInput.emit("keypress", new KeyEvent({
+    name,
+    sequence,
+    raw,
+    ctrl: false,
+    meta: false,
+    shift: false,
+    option: false,
+    number: false,
+    eventType: "press",
+    source: "raw",
+  }));
+}
+
+(winSetup.renderer as unknown as { setupInput?: () => void }).setupInput?.();
+const winFrame = winSetup.captureCharFrame();
+if (!winFrame.includes("Enter initials: ___")) {
+  winSetup.renderer.destroy();
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Qualifying win did not prompt for three initials.");
+}
+
+pressWinKey("a", "a", "a");
+pressWinKey("b", "b", "b");
+await Bun.sleep(20);
+await winSetup.renderOnce();
+const partialWinFrame = winSetup.captureCharFrame();
+if (!partialWinFrame.includes("Enter initials: AB_")) {
+  winSetup.renderer.destroy();
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Win screen did not reflect partial initials entry.");
+}
+
+pressWinKey("c", "c", "c");
+await Bun.sleep(80);
+await winSetup.renderOnce();
+const savedWinFrame = winSetup.captureCharFrame();
+if (!savedWinFrame.includes("Saved: ABC")) {
+  winSetup.renderer.destroy();
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Win screen did not confirm saved initials.");
+}
+
+if (!savedWinFrame.includes("ABC  100")) {
+  winSetup.renderer.destroy();
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Saved leaderboard entry was not rendered.");
+}
+
+if (!winCommands.some((command) => command.command === "submit_high_score" && command.initials === "ABC")) {
+  winSetup.renderer.destroy();
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. Win flow did not submit initials back to the engine.");
+}
+
+pressWinKey("n");
+await Bun.sleep(30);
+await winSetup.renderOnce();
+if (winCommands.filter((command) => command.command === "new_game").length !== 2) {
+  winSetup.renderer.destroy();
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. N did not start a new game after initials were saved.");
+}
+
+if (!winSetup.captureCharFrame().includes("Score: 0")) {
+  winSetup.renderer.destroy();
+  compactSetup.renderer.destroy();
+  setup.renderer.destroy();
+  throw new Error("Static TUI smoke test failed. New game did not restore the normal score line after win flow.");
+}
+
+winSetup.renderer.destroy();
 compactSetup.renderer.destroy();
 setup.renderer.destroy();
 console.log("Static TUI smoke test passed");
